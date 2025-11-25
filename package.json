@@ -1,6 +1,6 @@
 {
   "name": "@kitiumai/test-core",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Core test utilities for enterprise testing",
   "type": "module",
   "main": "dist/index.js",
@@ -11,6 +11,14 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kitium-ai/test-core.git"
+  },
+  "homepage": "https://github.com/kitium-ai/test-core#readme",
+  "bugs": {
+    "url": "https://github.com/kitium-ai/test-core/issues"
   },
   "exports": {
     ".": {
