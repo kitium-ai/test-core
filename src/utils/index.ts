@@ -6,30 +6,30 @@
 /**
  * Deep clone an object
  */
-export function deepClone<T>(obj: T): T {
-  if (obj === null || typeof obj !== 'object') {
-    return obj;
+export function deepClone<T>(object: T): T {
+  if (object === null || typeof object !== 'object') {
+    return object;
   }
 
-  if (obj instanceof Date) {
-    return new Date(obj.getTime()) as unknown as T;
+  if (object instanceof Date) {
+    return new Date(object.getTime()) as unknown as T;
   }
 
-  if (obj instanceof Array) {
-    return obj.map((item) => deepClone(item)) as unknown as T;
+  if (object instanceof Array) {
+    return object.map((item) => deepClone(item)) as unknown as T;
   }
 
-  if (obj instanceof Object) {
-    const clonedObj = {} as T;
-    for (const key in obj) {
-      if (Object.prototype.hasOwnProperty.call(obj, key)) {
-        clonedObj[key] = deepClone(obj[key]);
+  if (object instanceof Object) {
+    const clonedObject = {} as T;
+    for (const key in object) {
+      if (Object.prototype.hasOwnProperty.call(object, key)) {
+        clonedObject[key] = deepClone(object[key]);
       }
     }
-    return clonedObj;
+    return clonedObject;
   }
 
-  return obj;
+  return object;
 }
 
 /**

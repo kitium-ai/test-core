@@ -116,7 +116,7 @@ export class HttpMockManager {
    */
   getRequestsByUrl(urlPattern: string | RegExp): HttpMockRequest[] {
     const regex = urlPattern instanceof RegExp ? urlPattern : new RegExp(urlPattern);
-    return this.requests.filter((req) => regex.test(req.url));
+    return this.requests.filter((request) => regex.test(request.url));
   }
 
   /**

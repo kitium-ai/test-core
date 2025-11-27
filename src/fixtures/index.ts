@@ -46,9 +46,9 @@ export class FixtureManager {
   /**
    * Setup a fixture
    */
-  async setup<T>(name: string, setupFn: FixtureSetup<T>): Promise<T> {
+  async setup<T>(name: string, setupFunction: FixtureSetup<T>): Promise<T> {
     if (!this.fixtures.has(name)) {
-      this.register(name, { setup: setupFn });
+      this.register(name, { setup: setupFunction });
     }
 
     const fixture = this.fixtures.get(name);
@@ -59,7 +59,7 @@ export class FixtureManager {
       return fixture.value as T;
     }
 
-    const value = await setupFn();
+    const value = await setupFunction();
     fixture.value = value;
     this.setupOrder.push(name);
 
@@ -107,8 +107,8 @@ export class FixtureManager {
    */
   async teardownAll(): Promise<void> {
     // Teardown in reverse order of setup
-    for (let i = this.setupOrder.length - 1; i >= 0; i--) {
-      const name = this.setupOrder[i];
+    for (let index = this.setupOrder.length - 1; index >= 0; index--) {
+      const name = this.setupOrder[index];
       if (name) {
         await this.teardown(name);
       }

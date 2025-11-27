@@ -89,8 +89,8 @@ export class Factory<T> {
    * Create a single object
    */
   create(overrides?: Partial<T>): T {
-    const obj = this.builder(this.sequence.next());
-    return overrides ? { ...obj, ...overrides } : obj;
+    const object = this.builder(this.sequence.next());
+    return overrides ? { ...object, ...overrides } : object;
   }
 
   /**
@@ -98,9 +98,9 @@ export class Factory<T> {
    */
   createMany(count: number, customizer?: (index: number) => Partial<T>): T[] {
     return Array.from({ length: count }, (_, index) => {
-      const obj = this.builder(this.sequence.next());
+      const object = this.builder(this.sequence.next());
       const custom = customizer?.(index);
-      return custom ? { ...obj, ...custom } : obj;
+      return custom ? { ...object, ...custom } : object;
     });
   }
 

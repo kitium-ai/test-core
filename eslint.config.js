@@ -9,12 +9,42 @@ import {
   eslintTypeScriptConfig,
 } from '@kitiumai/lint';
 
+// Filter out problematic config and reapply with fixes
+const baseConfigFiltered = eslintBaseConfig.map((config) => {
+  if (config.rules?.['no-restricted-imports']) {
+    const { 'no-restricted-imports': _, ...rest } = config.rules;
+    return { ...config, rules: rest };
+  }
+  return config;
+});
+
 export default [
-  ...eslintBaseConfig,
+  ...baseConfigFiltered,
   ...eslintTypeScriptConfig,
   eslintJestConfig,
   {
     ignores: ['dist/**', 'node_modules/**', '*.config.js', '*.config.cjs'],
+  },
+  {
+    name: 'test-core-no-restricted-imports-fix',
+    rules: {
+      // Fix no-restricted-imports rule format for ESLint 9
+      'no-restricted-imports': [
+        'warn',
+        {
+          paths: [
+            {
+              name: '../../*',
+              message: 'Prefer module aliases over deep relative imports for maintainability.',
+            },
+            {
+              name: '../../../*',
+              message: 'Prefer module aliases over deep relative imports for maintainability.',
+            },
+          ],
+        },
+      ],
+    },
   },
   {
     name: 'test-core-overrides',

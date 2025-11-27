@@ -3,6 +3,8 @@
  * Re-exports and wraps @kitiumai/logger for test-specific use cases
  */
 
+import { randomUUID } from 'node:crypto';
+
 import {
   createLogger as createCoreLogger,
   getLogger,
@@ -11,11 +13,10 @@ import {
   type LogContext as LoggerLogContext,
   LogLevel,
 } from '@kitiumai/logger';
-import { randomUUID } from 'crypto';
 
 // Re-export types and enums from @kitiumai/logger
-export { LogLevel } from '@kitiumai/logger';
 export type { LogContext } from '@kitiumai/logger';
+export { LogLevel } from '@kitiumai/logger';
 
 // Re-export logger interface
 export type { ILogger } from '@kitiumai/logger';
@@ -52,11 +53,14 @@ class TestLogStorage {
   }
 
   get(options?: GetLogsOptions): TestLogEntry[] {
-    const normalizedAfter = options?.after
-      ? typeof options.after === 'string'
-        ? new Date(options.after)
-        : options.after
-      : undefined;
+    let normalizedAfter: Date | undefined;
+    if (options?.after) {
+      if (typeof options.after === 'string') {
+        normalizedAfter = new Date(options.after);
+      } else {
+        normalizedAfter = options.after;
+      }
+    }
 
     const filtered = this.logs.filter((log) => {
       if (options?.level && log.level !== options.level) {
@@ -128,8 +132,11 @@ class TestLoggerWrapper implements TestLogger {
     this.logger.http(message, metadata);
   }
 
-  withContext<T>(context: Partial<LoggerLogContext>, fn: () => T | Promise<T>): T | Promise<T> {
-    return this.logger.withContext(context, fn);
+  withContext<T>(
+    context: Partial<LoggerLogContext>,
+    function_: () => T | Promise<T>
+  ): T | Promise<T> {
+    return this.logger.withContext(context, function_);
   }
 
   child(metadata: Record<string, unknown>): ILogger {
@@ -203,7 +210,10 @@ export type LogExpectation = {
 };
 
 export function expectLogs(testLogger: TestLogger, expectation: LogExpectation): TestLogEntry[] {
-  const logs = testLogger.getLogs({ level: expectation.level, after: expectation.after });
+  const options: GetLogsOptions = {};
+  if (expectation.level !== undefined) options.level = expectation.level;
+  if (expectation.after !== undefined) options.after = expectation.after;
+  const logs = testLogger.getLogs(options);
   const filtered = expectation.contains
     ? logs.filter((log) =>
         expectation.contains?.every((clause) =>

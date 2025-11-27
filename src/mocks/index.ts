@@ -26,7 +26,7 @@ export function createMockFn<T extends (...args: unknown[]) => unknown>(
   const results: Array<{ type: 'return' | 'throw'; value: unknown }> = [];
   let currentImplementation = implementation;
 
-  const mockFn = ((...args: Parameters<T>): ReturnType<T> => {
+  const mockFunction = ((...args: Parameters<T>): ReturnType<T> => {
     calls.push(args);
 
     try {
@@ -41,40 +41,40 @@ export function createMockFn<T extends (...args: unknown[]) => unknown>(
     }
   }) as MockFunction<T>;
 
-  mockFn.mockCalls = calls;
-  mockFn.mockResults = results;
+  mockFunction.mockCalls = calls;
+  mockFunction.mockResults = results;
 
-  mockFn.mockClear = () => {
+  mockFunction.mockClear = () => {
     calls.length = 0;
     results.length = 0;
   };
 
-  mockFn.mockReset = () => {
-    mockFn.mockClear();
+  mockFunction.mockReset = () => {
+    mockFunction.mockClear();
     currentImplementation = undefined as T | undefined;
   };
 
-  mockFn.mockImplementation = (impl: T) => {
+  mockFunction.mockImplementation = (impl: T) => {
     currentImplementation = impl;
-    return mockFn;
+    return mockFunction;
   };
 
-  mockFn.mockReturnValue = (value: ReturnType<T>) => {
+  mockFunction.mockReturnValue = (value: ReturnType<T>) => {
     currentImplementation = (() => value) as T;
-    return mockFn;
+    return mockFunction;
   };
 
-  mockFn.mockResolvedValue = (value: Awaited<ReturnType<T>>) => {
+  mockFunction.mockResolvedValue = (value: Awaited<ReturnType<T>>) => {
     currentImplementation = (() => Promise.resolve(value)) as T;
-    return mockFn;
+    return mockFunction;
   };
 
-  mockFn.mockRejectedValue = (error: unknown) => {
+  mockFunction.mockRejectedValue = (error: unknown) => {
     currentImplementation = (() => Promise.reject(error)) as T;
-    return mockFn;
+    return mockFunction;
   };
 
-  return mockFn;
+  return mockFunction;
 }
 
 /**
