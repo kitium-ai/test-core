@@ -1,46 +1,67 @@
-import { readdir, rename, stat } from 'fs/promises';
-import path from 'path';
+/* eslint-disable no-undef, @typescript-eslint/explicit-function-return-type */
+import { readdir, rename, stat } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const baseDir = new URL('../dist/cjs', import.meta.url);
+const baseDirectory = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  'dist',
+  'cjs'
+);
 
-async function renameToCjs(directoryUrl) {
-  const entries = await readdir(directoryUrl, { withFileTypes: true });
+/**
+ * Recursively rename .js files to .cjs in a directory
+ * @param {string} directoryPath - The directory path to process
+ * @returns {Promise<void>}
+ */
+async function renameToCjs(directoryPath) {
+  const entries = await readdir(directoryPath, { withFileTypes: true });
 
   await Promise.all(
     entries.map(async (entry) => {
-      const entryUrl = new URL(`./${entry.name}`, directoryUrl);
+      const entryPath = path.join(directoryPath, entry.name);
 
       if (entry.isDirectory()) {
-        await renameToCjs(entryUrl);
+        await renameToCjs(entryPath);
         return;
       }
 
       if (entry.isFile() && entry.name.endsWith('.js')) {
         const parsed = path.parse(entry.name);
         const cjsName = `${parsed.name}.cjs`;
-        const targetUrl = new URL(`./${cjsName}`, directoryUrl);
-        await rename(entryUrl, targetUrl);
+        const targetPath = path.join(directoryPath, cjsName);
+        await rename(entryPath, targetPath);
       }
     })
   );
 }
 
-async function ensureExists(url) {
+/**
+ * Check if a path points to an existing directory
+ * @param {string} directoryPath - The directory path to check
+ * @returns {Promise<boolean>}
+ */
+async function ensureExists(directoryPath) {
   try {
-    const stats = await stat(url);
+    const stats = await stat(directoryPath);
     return stats.isDirectory();
-  } catch (error) {
+  } catch {
     return false;
   }
 }
 
+/**
+ * Main entry point
+ * @returns {Promise<void>}
+ */
 async function main() {
-  const exists = await ensureExists(baseDir);
+  const exists = await ensureExists(baseDirectory);
   if (!exists) {
     return;
   }
 
-  await renameToCjs(baseDir);
+  await renameToCjs(baseDirectory);
 }
 
 main().catch((error) => {

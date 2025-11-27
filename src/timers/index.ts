@@ -34,7 +34,7 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, message?: string
  * @returns Debounced function
  */
 export function debounce<T extends (...args: unknown[]) => unknown>(
-  fn: T,
+  function_: T,
   delayMs: number
 ): (...args: Parameters<T>) => void {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -45,7 +45,7 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
     }
 
     timeoutId = setTimeout(() => {
-      fn(...args);
+      function_(...args);
       timeoutId = null;
     }, delayMs);
   };
@@ -58,14 +58,14 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
  * @returns Throttled function
  */
 export function throttle<T extends (...args: unknown[]) => unknown>(
-  fn: T,
+  function_: T,
   limitMs: number
 ): (...args: Parameters<T>) => void {
   let inThrottle = false;
 
   return (...args: Parameters<T>) => {
     if (!inThrottle) {
-      fn(...args);
+      function_(...args);
       inThrottle = true;
 
       setTimeout(() => {
@@ -81,10 +81,10 @@ export function throttle<T extends (...args: unknown[]) => unknown>(
  * @returns Object with result and duration in milliseconds
  */
 export async function measureTime<T>(
-  fn: () => T | Promise<T>
+  function_: () => T | Promise<T>
 ): Promise<{ result: T; duration: number }> {
   const startTime = performance.now();
-  const result = await fn();
+  const result = await function_();
   const duration = performance.now() - startTime;
 
   return { result, duration };
@@ -99,11 +99,11 @@ export async function measureTime<T>(
  * @throws Error if execution time is outside bounds
  */
 export async function assertExecutionTime<T>(
-  fn: () => T | Promise<T>,
+  function_: () => T | Promise<T>,
   minMs: number,
   maxMs: number
 ): Promise<T> {
-  const { result, duration } = await measureTime(fn);
+  const { result, duration } = await measureTime(function_);
 
   if (duration < minMs || duration > maxMs) {
     throw new Error(`Execution time ${duration.toFixed(2)}ms not within range ${minMs}-${maxMs}ms`);
@@ -119,11 +119,11 @@ export async function assertExecutionTime<T>(
  * @returns Delayed function that returns a promise
  */
 export function delayedFn<T extends (...args: unknown[]) => unknown>(
-  fn: T,
+  function_: T,
   delayMs: number
 ): (...args: Parameters<T>) => Promise<ReturnType<T>> {
   return async (...args: Parameters<T>): Promise<ReturnType<T>> => {
     await new Promise((resolve) => setTimeout(resolve, delayMs));
-    return fn(...args) as ReturnType<T>;
+    return function_(...args) as ReturnType<T>;
   };
 }

@@ -33,13 +33,13 @@ const freezeDeep = <T>(value: T): Readonly<T> => {
   }
 
   if (Array.isArray(value)) {
-    return Object.freeze(value.map((item) => freezeDeep(item))) as Readonly<T>;
+    return Object.freeze(value.map((item) => freezeDeep(item))) as unknown as Readonly<T>;
   }
 
   return Object.freeze(
-    Object.entries(value).reduce((acc, [key, val]) => {
-      acc[key as keyof T] = freezeDeep(val) as T[keyof T];
-      return acc;
+    Object.entries(value).reduce((accumulator, [key, value_]) => {
+      accumulator[key as keyof T] = freezeDeep(value_) as T[keyof T];
+      return accumulator;
     }, {} as T)
   );
 };
@@ -53,16 +53,24 @@ const defaultConfig: ResolvedTestConfig = freezeDeep({
 });
 
 const coerceBoolean = (value: unknown, fallback: boolean): boolean => {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    return value.toLowerCase() === 'true';
+  }
   return fallback;
 };
 
 const coerceNumber = (value: unknown, fallback: number, options?: { minimum?: number }): number => {
-  const num = typeof value === 'string' ? Number.parseInt(value, 10) : (value as number);
-  if (Number.isNaN(num) || typeof num !== 'number') return fallback;
-  if (options?.minimum !== undefined && num < options.minimum) return fallback;
-  return num;
+  const numericValue = typeof value === 'string' ? Number.parseInt(value, 10) : (value as number);
+  if (Number.isNaN(numericValue) || typeof numericValue !== 'number') {
+    return fallback;
+  }
+  if (options?.minimum !== undefined && numericValue < options.minimum) {
+    return fallback;
+  }
+  return numericValue;
 };
 
 class ConfigManager {
@@ -73,10 +81,10 @@ class ConfigManager {
   }
 
   private buildConfig(initialConfig?: TestConfig): ResolvedTestConfig {
-    const envOverrides = this.loadEnvironmentOverrides();
+    const environmentOverrides = this.loadEnvironmentOverrides();
     const mergedInput: TestConfig = {
       ...initialConfig,
-      ...envOverrides,
+      ...environmentOverrides,
     };
 
     const coerced: ResolvedTestConfig = freezeDeep({
@@ -92,18 +100,19 @@ class ConfigManager {
   }
 
   private loadEnvironmentOverrides(): Partial<TestConfig> {
-    const env = process.env;
+    const environment = process.env;
+    const overrides: Partial<TestConfig> = {};
 
-    return {
-      timeout: env['TEST_TIMEOUT'],
-      retries: env['TEST_RETRIES'],
-      verbose: env['TEST_VERBOSE'],
-      ci: env['CI'],
-      headless: env['HEADLESS'],
-      baseUrl: env['BASE_URL'],
-      apiUrl: env['API_URL'],
-      dbUrl: env['DATABASE_URL'],
-    };
+    if (environment['TEST_TIMEOUT'] !== undefined) overrides.timeout = environment['TEST_TIMEOUT'];
+    if (environment['TEST_RETRIES'] !== undefined) overrides.retries = environment['TEST_RETRIES'];
+    if (environment['TEST_VERBOSE'] !== undefined) overrides.verbose = environment['TEST_VERBOSE'];
+    if (environment['CI'] !== undefined) overrides.ci = environment['CI'];
+    if (environment['HEADLESS'] !== undefined) overrides.headless = environment['HEADLESS'];
+    if (environment['BASE_URL'] !== undefined) overrides.baseUrl = environment['BASE_URL'];
+    if (environment['API_URL'] !== undefined) overrides.apiUrl = environment['API_URL'];
+    if (environment['DATABASE_URL'] !== undefined) overrides.dbUrl = environment['DATABASE_URL'];
+
+    return overrides;
   }
 
   get<T extends keyof ResolvedTestConfig>(key: T): ResolvedTestConfig[T] {

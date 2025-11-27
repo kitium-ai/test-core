@@ -9,6 +9,7 @@
     "moduleResolution": "Node",
     "types": ["node"],
     "declaration": false,
+    "declarationMap": false,
     "sourceMap": true
   },
   "include": ["src"],

@@ -42,9 +42,9 @@ export function createFactoryWithBuilder<T>(
     const data = defaultFactory(seed);
     const relationData = relations
       ? Object.entries(relations).reduce(
-          (acc, [key, gen]) => {
-            acc[key] = gen(seed);
-            return acc;
+          (accumulator, [key, gen]) => {
+            accumulator[key] = gen(seed);
+            return accumulator;
           },
           {} as Record<string, unknown>
         )
@@ -67,7 +67,7 @@ export const DataGenerators = {
     charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
   ): string {
     let result = '';
-    for (let i = 0; i < length; i++) {
+    for (let index = 0; index < length; index++) {
       result += charset.charAt(Math.floor(Math.random() * charset.length));
     }
     return result;
@@ -127,8 +127,8 @@ export const DataGenerators = {
     const nouns = ['fox', 'dog', 'cat', 'bear', 'lion', 'tiger'];
     const adj = pickRandom(adjectives);
     const noun = pickRandom(nouns);
-    const num = this.number(1, 999);
-    return `${adj}_${noun}_${num}`;
+    const randomNumber = this.number(1, 999);
+    return `${adj}_${noun}_${randomNumber}`;
   },
 
   /**
@@ -372,8 +372,8 @@ export const DataGenerators = {
         () => this.boolean(),
         () => null,
       ] as const;
-      const typeFn = pickRandom(typeFns);
-      return typeFn() as T;
+      const typeFunction = pickRandom(typeFns);
+      return typeFunction() as T;
     }
 
     const keys = Array.from({ length: this.number(2, 4) }, () => this.string(5));
