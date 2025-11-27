@@ -2,6 +2,22 @@
 
 Core test utilities and shared functionality used across all test frameworks. Provides foundational utilities for data generation, configuration management, logging, and common async operations.
 
+## Public API surface
+
+`@kitiumai/test-core` now exposes a single curated entry point that aligns with the `docs/architecture-review.md` guidance. Import from the root and tree-shake only what you need:
+
+```ts
+import {
+  createLogger,
+  createConfigManager,
+  waitFor,
+  DataGenerators,
+  Builder,
+} from '@kitiumai/test-core';
+```
+
+The public surface is snapshot-tested to guard against accidental breakage.
+
 ## Installation
 
 ```bash
@@ -16,6 +32,19 @@ npm install @kitiumai/test-core
 - ⚙️ **Configuration** - Environment-aware configuration management
 - 📝 **Logging** - Structured logging with levels and context
 - 🔧 **Utilities** - Deep clone, merge, sanitization helpers
+
+## Configuration with schema enforcement
+
+The configuration manager validates inputs (including environment overrides) using a schema and returns an immutable snapshot suitable for global test setup.
+
+```ts
+import { createConfigManager } from '@kitiumai/test-core';
+
+const config = createConfigManager({ baseUrl: 'https://example.com' });
+
+const timeout = config.get('timeout');
+const all = config.getAll(); // deeply frozen, safe to share globally
+```
 
 ## Quick Start
 
@@ -32,6 +61,24 @@ await waitUntil(() => element.isVisible(), { timeoutMs: 5000 });
 const user = Factories.user({ email: 'test@example.com' });
 const email = DataGenerators.email();
 ```
+
+## Logging with deterministic retrieval
+
+The test logger stores structured entries in-memory and exposes deterministic retrieval helpers.
+
+```ts
+import { createLogger, expectLogs, LogLevel } from '@kitiumai/test-core';
+
+const logger = createLogger(LogLevel.INFO, { userId: '123' });
+
+logger.info('user login');
+
+const loginLogs = expectLogs(logger, { level: LogLevel.INFO, contains: ['login'], minimum: 1 });
+```
+
+## Framework recipes
+
+Opinionated setups for Jest, Vitest, and Playwright live in [`docs/recipes/frameworks.md`](./docs/recipes/frameworks.md).
 
 ## API Reference
 
