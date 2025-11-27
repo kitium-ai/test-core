@@ -211,8 +211,12 @@ export type LogExpectation = {
 
 export function expectLogs(testLogger: TestLogger, expectation: LogExpectation): TestLogEntry[] {
   const options: GetLogsOptions = {};
-  if (expectation.level !== undefined) options.level = expectation.level;
-  if (expectation.after !== undefined) options.after = expectation.after;
+  if (expectation.level !== undefined) {
+    options.level = expectation.level;
+  }
+  if (expectation.after !== undefined) {
+    options.after = expectation.after;
+  }
   const logs = testLogger.getLogs(options);
   const filtered = expectation.contains
     ? logs.filter((log) =>

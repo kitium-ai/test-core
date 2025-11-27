@@ -3,12 +3,7 @@ import { readdir, rename, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const baseDirectory = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '..',
-  'dist',
-  'cjs'
-);
+const baseDirectory = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'cjs');
 
 /**
  * Recursively rename .js files to .cjs in a directory

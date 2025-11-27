@@ -103,14 +103,30 @@ class ConfigManager {
     const environment = process.env;
     const overrides: Partial<TestConfig> = {};
 
-    if (environment['TEST_TIMEOUT'] !== undefined) overrides.timeout = environment['TEST_TIMEOUT'];
-    if (environment['TEST_RETRIES'] !== undefined) overrides.retries = environment['TEST_RETRIES'];
-    if (environment['TEST_VERBOSE'] !== undefined) overrides.verbose = environment['TEST_VERBOSE'];
-    if (environment['CI'] !== undefined) overrides.ci = environment['CI'];
-    if (environment['HEADLESS'] !== undefined) overrides.headless = environment['HEADLESS'];
-    if (environment['BASE_URL'] !== undefined) overrides.baseUrl = environment['BASE_URL'];
-    if (environment['API_URL'] !== undefined) overrides.apiUrl = environment['API_URL'];
-    if (environment['DATABASE_URL'] !== undefined) overrides.dbUrl = environment['DATABASE_URL'];
+    if (environment['TEST_TIMEOUT'] !== undefined) {
+      overrides.timeout = environment['TEST_TIMEOUT'];
+    }
+    if (environment['TEST_RETRIES'] !== undefined) {
+      overrides.retries = environment['TEST_RETRIES'];
+    }
+    if (environment['TEST_VERBOSE'] !== undefined) {
+      overrides.verbose = environment['TEST_VERBOSE'];
+    }
+    if (environment['CI'] !== undefined) {
+      overrides.ci = environment['CI'];
+    }
+    if (environment['HEADLESS'] !== undefined) {
+      overrides.headless = environment['HEADLESS'];
+    }
+    if (environment['BASE_URL'] !== undefined) {
+      overrides.baseUrl = environment['BASE_URL'];
+    }
+    if (environment['API_URL'] !== undefined) {
+      overrides.apiUrl = environment['API_URL'];
+    }
+    if (environment['DATABASE_URL'] !== undefined) {
+      overrides.dbUrl = environment['DATABASE_URL'];
+    }
 
     return overrides;
   }

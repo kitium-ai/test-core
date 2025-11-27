@@ -3,11 +3,7 @@
  * Uses @kitiumai/lint as the base configuration
  */
 
-import {
-  eslintBaseConfig,
-  eslintJestConfig,
-  eslintTypeScriptConfig,
-} from '@kitiumai/lint';
+import { eslintBaseConfig, eslintJestConfig, eslintTypeScriptConfig } from '@kitiumai/lint';
 
 // Filter out problematic config and reapply with fixes
 const baseConfigFiltered = eslintBaseConfig.map((config) => {
