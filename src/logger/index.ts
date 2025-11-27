@@ -4,8 +4,9 @@
  */
 
 import {
+  createLogger as createCoreLogger,
   getLogger,
-  LoggerBuilder,
+  getPresetConfig,
   type ILogger,
   type LogContext as LoggerLogContext,
   LogLevel,
@@ -22,14 +23,21 @@ export type { ILogger } from '@kitiumai/logger';
 /**
  * Test-specific logger interface that extends ILogger
  */
+export type TestLogEntry = {
+  timestamp: string;
+  level: LogLevel;
+  message: string;
+  context?: Record<string, unknown>;
+  error?: Error;
+};
+
+export type GetLogsOptions = {
+  level?: LogLevel;
+  after?: Date | string;
+};
+
 export type TestLogger = {
-  getLogs(level?: LogLevel): Array<{
-    timestamp: string;
-    level: string;
-    message: string;
-    context?: Record<string, unknown>;
-    error?: Error;
-  }>;
+  getLogs(options?: GetLogsOptions): TestLogEntry[];
   clear(): void;
 } & ILogger;
 
@@ -37,35 +45,34 @@ export type TestLogger = {
  * In-memory log storage for test assertions
  */
 class TestLogStorage {
-  private logs: Array<{
-    timestamp: string;
-    level: string;
-    message: string;
-    context?: Record<string, unknown>;
-    error?: Error;
-  }> = [];
+  private logs: TestLogEntry[] = [];
 
-  add(entry: {
-    timestamp: string;
-    level: string;
-    message: string;
-    context?: Record<string, unknown>;
-    error?: Error;
-  }): void {
+  add(entry: TestLogEntry): void {
     this.logs.push(entry);
   }
 
-  get(level?: string): Array<{
-    timestamp: string;
-    level: string;
-    message: string;
-    context?: Record<string, unknown>;
-    error?: Error;
-  }> {
-    if (!level) {
-      return [...this.logs];
-    }
-    return this.logs.filter((log) => log.level === level);
+  get(options?: GetLogsOptions): TestLogEntry[] {
+    const normalizedAfter = options?.after
+      ? typeof options.after === 'string'
+        ? new Date(options.after)
+        : options.after
+      : undefined;
+
+    const filtered = this.logs.filter((log) => {
+      if (options?.level && log.level !== options.level) {
+        return false;
+      }
+
+      if (normalizedAfter && new Date(log.timestamp).getTime() <= normalizedAfter.getTime()) {
+        return false;
+      }
+
+      return true;
+    });
+
+    return [...filtered].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
   }
 
   clear(): void {
@@ -97,66 +104,27 @@ class TestLoggerWrapper implements TestLogger {
   }
 
   debug(message: string, metadata?: Record<string, unknown>): void {
-    const entry = {
-      timestamp: new Date().toISOString(),
-      level: 'debug',
-      message,
-      context: { ...this.context, ...metadata },
-    };
-    this.storage.add(entry);
+    this.storage.add(this.buildEntry(LogLevel.DEBUG, message, metadata));
     this.logger.debug(message, metadata);
   }
 
   info(message: string, metadata?: Record<string, unknown>): void {
-    const entry = {
-      timestamp: new Date().toISOString(),
-      level: 'info',
-      message,
-      context: { ...this.context, ...metadata },
-    };
-    this.storage.add(entry);
+    this.storage.add(this.buildEntry(LogLevel.INFO, message, metadata));
     this.logger.info(message, metadata);
   }
 
   warn(message: string, metadata?: Record<string, unknown>): void {
-    const entry = {
-      timestamp: new Date().toISOString(),
-      level: 'warn',
-      message,
-      context: { ...this.context, ...metadata },
-    };
-    this.storage.add(entry);
+    this.storage.add(this.buildEntry(LogLevel.WARN, message, metadata));
     this.logger.warn(message, metadata);
   }
 
   error(message: string, metadata?: Record<string, unknown>, error?: Error): void {
-    const entry: {
-      timestamp: string;
-      level: string;
-      message: string;
-      context?: Record<string, unknown>;
-      error?: Error;
-    } = {
-      timestamp: new Date().toISOString(),
-      level: 'error',
-      message,
-      context: { ...this.context, ...metadata },
-    };
-    if (error) {
-      entry.error = error;
-    }
-    this.storage.add(entry);
+    this.storage.add(this.buildEntry(LogLevel.ERROR, message, metadata, error));
     this.logger.error(message, metadata, error);
   }
 
   http(message: string, metadata?: Record<string, unknown>): void {
-    const entry = {
-      timestamp: new Date().toISOString(),
-      level: 'http',
-      message,
-      context: { ...this.context, ...metadata },
-    };
-    this.storage.add(entry);
+    this.storage.add(this.buildEntry(LogLevel.HTTP, message, metadata));
     this.logger.http(message, metadata);
   }
 
@@ -175,21 +143,31 @@ class TestLoggerWrapper implements TestLogger {
     await this.logger.close();
   }
 
-  getLogs(level?: LogLevel): Array<{
-    timestamp: string;
-    level: string;
-    message: string;
-    context?: Record<string, unknown>;
-    error?: Error;
-  }> {
-    if (!level) {
-      return this.storage.get();
-    }
-    return this.storage.get(level.toLowerCase());
+  getLogs(options?: GetLogsOptions): TestLogEntry[] {
+    return this.storage.get(options);
   }
 
   clear(): void {
     this.storage.clear();
+  }
+  private buildEntry(
+    level: LogLevel,
+    message: string,
+    metadata?: Record<string, unknown>,
+    error?: Error
+  ): TestLogEntry {
+    const entry: TestLogEntry = {
+      timestamp: new Date().toISOString(),
+      level,
+      message,
+      context: { ...this.context, ...metadata },
+    };
+
+    if (error) {
+      entry.error = error;
+    }
+
+    return entry;
   }
 }
 
@@ -201,7 +179,11 @@ const globalStorage = new TestLogStorage();
  * Uses @kitiumai/logger with test-specific features
  */
 export function createLogger(level?: LogLevel, context?: Partial<LoggerLogContext>): TestLogger {
-  const logger = LoggerBuilder.console(level ?? LogLevel.INFO);
+  const loggerConfig = getPresetConfig('development', {
+    logLevel: level ?? LogLevel.INFO,
+    serviceName: 'test-core',
+  });
+  const logger = createCoreLogger(loggerConfig);
   return new TestLoggerWrapper(logger, globalStorage, context);
 }
 
@@ -211,6 +193,34 @@ export function createLogger(level?: LogLevel, context?: Partial<LoggerLogContex
 export function getTestLogger(): TestLogger {
   const logger = getLogger();
   return new TestLoggerWrapper(logger, globalStorage);
+}
+
+export type LogExpectation = {
+  level?: LogLevel;
+  after?: Date | string;
+  contains?: Array<string | RegExp>;
+  minimum?: number;
+};
+
+export function expectLogs(testLogger: TestLogger, expectation: LogExpectation): TestLogEntry[] {
+  const logs = testLogger.getLogs({ level: expectation.level, after: expectation.after });
+  const filtered = expectation.contains
+    ? logs.filter((log) =>
+        expectation.contains?.every((clause) =>
+          typeof clause === 'string'
+            ? log.message.includes(clause) || JSON.stringify(log.context ?? {}).includes(clause)
+            : clause.test(log.message)
+        )
+      )
+    : logs;
+
+  if (expectation.minimum !== undefined && filtered.length < expectation.minimum) {
+    throw new Error(
+      `Expected at least ${expectation.minimum} log(s) but found ${filtered.length} matching entries.`
+    );
+  }
+
+  return filtered;
 }
 
 // Default export for backward compatibility

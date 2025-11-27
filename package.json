@@ -3,8 +3,9 @@
   "version": "1.0.1",
   "description": "Core test utilities for enterprise testing",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/cjs/public.cjs",
+  "module": "dist/esm/public.js",
+  "types": "dist/types/public.d.ts",
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
@@ -22,53 +23,11 @@
   },
   "exports": {
     ".": {
-      " types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "import": "./dist/esm/public.js",
+      "require": "./dist/cjs/public.cjs",
+      "types": "./dist/types/public.d.ts"
     },
-    "./logger": {
-      "types": "./dist/logger/index.d.ts",
-      "default": "./dist/logger/index.js"
-    },
-    "./config": {
-      "types": "./dist/config/index.d.ts",
-      "default": "./dist/config/index.js"
-    },
-    "./utils": {
-      "types": "./dist/utils/index.d.ts",
-      "default": "./dist/utils/index.js"
-    },
-    "./data": {
-      "types": "./dist/data/index.d.ts",
-      "default": "./dist/data/index.js"
-    },
-    "./mocks": {
-      "types": "./dist/mocks/index.d.ts",
-      "default": "./dist/mocks/index.js"
-    },
-    "./fixtures": {
-      "types": "./dist/fixtures/index.d.ts",
-      "default": "./dist/fixtures/index.js"
-    },
-    "./http": {
-      "types": "./dist/http/index.d.ts",
-      "default": "./dist/http/index.js"
-    },
-    "./async": {
-      "types": "./dist/async/index.d.ts",
-      "default": "./dist/async/index.js"
-    },
-    "./builders": {
-      "types": "./dist/builders/index.d.ts",
-      "default": "./dist/builders/index.js"
-    },
-    "./errors": {
-      "types": "./dist/errors/index.d.ts",
-      "default": "./dist/errors/index.js"
-    },
-    "./timers": {
-      "types": "./dist/timers/index.d.ts",
-      "default": "./dist/timers/index.js"
-    }
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
@@ -76,7 +35,9 @@
     "CHANGELOG.md"
   ],
   "scripts": {
-    "build": "tsc -b",
+    "build": "npm run clean && npm run build:esm && npm run build:cjs",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json && node ./scripts/rename-cjs.mjs",
     "build:clean": "npm run clean && npm run build",
     "watch": "tsc --watch",
     "clean": "rimraf dist",

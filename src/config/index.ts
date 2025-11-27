@@ -3,92 +3,133 @@
  */
 
 export type TestConfig = {
-  timeout?: number;
-  retries?: number;
-  verbose?: boolean;
-  ci?: boolean;
-  headless?: boolean;
+  timeout?: number | string;
+  retries?: number | string;
+  verbose?: boolean | string;
+  ci?: boolean | string;
+  headless?: boolean | string;
   baseUrl?: string;
   apiUrl?: string;
   dbUrl?: string;
   [key: string]: unknown;
 };
 
+export type ResolvedTestConfig = Readonly<
+  {
+    timeout: number;
+    retries: number;
+    verbose: boolean;
+    ci: boolean;
+    headless: boolean;
+    baseUrl?: string;
+    apiUrl?: string;
+    dbUrl?: string;
+  } & Record<string, unknown>
+>;
+
+const freezeDeep = <T>(value: T): Readonly<T> => {
+  if (typeof value !== 'object' || value === null) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return Object.freeze(value.map((item) => freezeDeep(item))) as Readonly<T>;
+  }
+
+  return Object.freeze(
+    Object.entries(value).reduce((acc, [key, val]) => {
+      acc[key as keyof T] = freezeDeep(val) as T[keyof T];
+      return acc;
+    }, {} as T)
+  );
+};
+
+const defaultConfig: ResolvedTestConfig = freezeDeep({
+  timeout: 30000,
+  retries: 0,
+  verbose: false,
+  ci: false,
+  headless: true,
+});
+
+const coerceBoolean = (value: unknown, fallback: boolean): boolean => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  return fallback;
+};
+
+const coerceNumber = (value: unknown, fallback: number, options?: { minimum?: number }): number => {
+  const num = typeof value === 'string' ? Number.parseInt(value, 10) : (value as number);
+  if (Number.isNaN(num) || typeof num !== 'number') return fallback;
+  if (options?.minimum !== undefined && num < options.minimum) return fallback;
+  return num;
+};
+
 class ConfigManager {
-  private config: TestConfig = {};
-  private readonly defaults: TestConfig = {
-    timeout: 30000,
-    retries: 0,
-    verbose: false,
-    ci: false,
-    headless: true,
-  };
+  private config: ResolvedTestConfig;
 
   constructor(initialConfig?: TestConfig) {
-    this.config = {
-      ...this.defaults,
-      ...initialConfig,
-    };
-    this.loadEnvironmentVariables();
+    this.config = this.buildConfig(initialConfig);
   }
 
-  private loadEnvironmentVariables(): void {
+  private buildConfig(initialConfig?: TestConfig): ResolvedTestConfig {
+    const envOverrides = this.loadEnvironmentOverrides();
+    const mergedInput: TestConfig = {
+      ...initialConfig,
+      ...envOverrides,
+    };
+
+    const coerced: ResolvedTestConfig = freezeDeep({
+      ...mergedInput,
+      timeout: coerceNumber(mergedInput.timeout, defaultConfig.timeout, { minimum: 1 }),
+      retries: coerceNumber(mergedInput.retries, defaultConfig.retries, { minimum: 0 }),
+      verbose: coerceBoolean(mergedInput.verbose, defaultConfig.verbose),
+      ci: coerceBoolean(mergedInput.ci, defaultConfig.ci),
+      headless: coerceBoolean(mergedInput.headless, defaultConfig.headless),
+    });
+
+    return coerced;
+  }
+
+  private loadEnvironmentOverrides(): Partial<TestConfig> {
     const env = process.env;
 
-    const timeout = env['TEST_TIMEOUT'];
-    if (timeout) {
-      this.config.timeout = parseInt(timeout, 10);
-    }
-
-    const retries = env['TEST_RETRIES'];
-    if (retries) {
-      this.config.retries = parseInt(retries, 10);
-    }
-
-    if (env['CI']) {
-      this.config.ci = true;
-      this.config.headless = true;
-    }
-
-    const verbose = env['TEST_VERBOSE'];
-    if (verbose) {
-      this.config.verbose = verbose === 'true';
-    }
-
-    const baseUrl = env['BASE_URL'];
-    if (baseUrl) {
-      this.config.baseUrl = baseUrl;
-    }
-
-    const apiUrl = env['API_URL'];
-    if (apiUrl) {
-      this.config.apiUrl = apiUrl;
-    }
-
-    const databaseUrl = env['DATABASE_URL'];
-    if (databaseUrl) {
-      this.config.dbUrl = databaseUrl;
-    }
+    return {
+      timeout: env['TEST_TIMEOUT'],
+      retries: env['TEST_RETRIES'],
+      verbose: env['TEST_VERBOSE'],
+      ci: env['CI'],
+      headless: env['HEADLESS'],
+      baseUrl: env['BASE_URL'],
+      apiUrl: env['API_URL'],
+      dbUrl: env['DATABASE_URL'],
+    };
   }
 
-  get<T extends keyof TestConfig>(key: T): TestConfig[T] {
+  get<T extends keyof ResolvedTestConfig>(key: T): ResolvedTestConfig[T] {
     return this.config[key];
   }
 
-  set<T extends keyof TestConfig>(key: T, value: TestConfig[T]): void {
-    this.config[key] = value;
+  set<T extends keyof ResolvedTestConfig>(key: T, value: ResolvedTestConfig[T]): void {
+    this.config = this.buildConfig({
+      ...this.config,
+      [key]: value,
+    });
   }
 
-  getAll(): TestConfig {
-    return { ...this.config };
+  getAll(): ResolvedTestConfig {
+    return this.config;
   }
 
   merge(partial: Partial<TestConfig>): void {
-    this.config = { ...this.config, ...partial };
+    this.config = this.buildConfig({
+      ...this.config,
+      ...partial,
+    });
   }
 
   reset(): void {
-    this.config = { ...this.defaults };
+    this.config = this.buildConfig();
   }
 }
 
