@@ -19,7 +19,7 @@ export default [
   ...eslintTypeScriptConfig,
   eslintJestConfig,
   {
-    ignores: ['dist/**', 'node_modules/**', '*.config.js', '*.config.cjs'],
+    ignores: ['dist/**', 'node_modules/**', '*.config.js', '*.config.cjs', '*.d.ts'],
   },
   {
     name: 'test-core-no-restricted-imports-fix',

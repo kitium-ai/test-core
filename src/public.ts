@@ -70,11 +70,17 @@ export {
   type TestLogEntry,
   type TestLogger,
 } from './logger';
-export { createMockFn, createMockObject, type MockFunction, restoreSpy, spyOn } from './mocks';
+export {
+  createMockFunction,
+  createMockObject,
+  type MockFunction,
+  restoreSpy,
+  spyOn,
+} from './mocks';
 export {
   assertExecutionTime,
   debounce,
-  delayedFn,
+  delayedFunction,
   measureTime,
   throttle,
   timeout,

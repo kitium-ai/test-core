@@ -59,7 +59,11 @@ async function main() {
   await renameToCjs(baseDirectory);
 }
 
-main().catch((error) => {
-  console.error('Failed to rename CommonJS outputs', error);
-  process.exitCode = 1;
-});
+(async () => {
+  try {
+    await main();
+  } catch (error) {
+    console.error('Failed to rename CommonJS outputs', error);
+    process.exitCode = 1;
+  }
+})();

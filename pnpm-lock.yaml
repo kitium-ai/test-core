@@ -15,8 +15,8 @@ importers:
   .:
     dependencies:
       '@kitiumai/logger':
-        specifier: ^2.0.0
-        version: 2.0.0
+        specifier: ^2.0.1
+        version: 2.0.1
     devDependencies:
       '@changesets/cli':
         specifier: ^2.27.1
@@ -25,11 +25,11 @@ importers:
         specifier: ^3.1.0
         version: 3.3.1
       '@kitiumai/config':
-        specifier: ^2.0.0
-        version: 2.0.0(eslint@9.39.1)(prettier@3.7.1)(semantic-release@25.0.2(typescript@5.9.3))(typescript@5.9.3)
+        specifier: ^2.0.1
+        version: 2.0.1(eslint@9.39.1)(prettier@3.7.1)(semantic-release@25.0.2(typescript@5.9.3))(typescript@5.9.3)
       '@kitiumai/lint':
-        specifier: ^2.0.0
-        version: 2.0.0(@types/node@24.10.1)(eslint@9.39.1)(graphql@15.10.1)(jest@29.7.0(@types/node@24.10.1)(ts-node@9.1.1(typescript@5.9.3)))(typescript@5.9.3)
+        specifier: ^2.0.1
+        version: 2.0.1(@types/node@24.10.1)(eslint@9.39.1)(graphql@15.10.1)(jest@29.7.0(@types/node@24.10.1)(ts-node@9.1.1(typescript@5.9.3)))(typescript@5.9.3)
       '@kitiumai/scripts':
         specifier: ^1.0.0
         version: 1.0.0
@@ -931,17 +931,17 @@ packages:
         integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==,
       }
 
-  '@kitiumai/config@2.0.0':
+  '@kitiumai/config@2.0.1':
     resolution:
       {
-        integrity: sha512-7okSZw6yJeqQd0ZAH7iE65AvLIqjIH69uB0aqteR+rL2ywMPFs3vG5uEJci1rcC71b2zT5RBeloEE48gp9IbJw==,
+        integrity: sha512-rhtgWleVSNxstffSgW0LBeflTv+0WWYckRM0X4j6y9loSmgvrGk9U1+WWgMEjeM2JT8PNHSB1NdPH+a/0lDIJA==,
       }
     hasBin: true
 
-  '@kitiumai/lint@2.0.0':
+  '@kitiumai/lint@2.0.1':
     resolution:
       {
-        integrity: sha512-TFjD1lV750YNxWRwZMvXlDIT/Km9IQAgvJEXL8DMxv2PlVpBw3aqNg27eRM1DkYAcn3/hY74GY1I/SvIfP2zyg==,
+        integrity: sha512-4MZeYILHwxOKE4mR7hNKrpvZRG/1DW4YBLvoz7Hu+wh8Iiq9914zjSWu4jv6cIA5vDrAxHUUcURKL2eVH8TtzQ==,
       }
     engines: { node: '>=18.0.0' }
     peerDependencies:
@@ -954,10 +954,10 @@ packages:
       typescript:
         optional: true
 
-  '@kitiumai/logger@2.0.0':
+  '@kitiumai/logger@2.0.1':
     resolution:
       {
-        integrity: sha512-iY20fYymfc5VOyXPnQeIkl59mB6FX34HscSkAVjca5hU/jUujfUmuRxYYZ17xTmaQvkWcpCWyV9pSHuxCalMfQ==,
+        integrity: sha512-rt3o1Zu8YSykH3amiDM7iLgrhEwyh9aNgOYn0dzjx7N869jBRfpAEjJsSZ3LBwlvQMqifSrPYrZv89ykpkpeDA==,
       }
 
   '@kitiumai/scripts@1.0.0':
@@ -8610,7 +8610,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@kitiumai/config@2.0.0(eslint@9.39.1)(prettier@3.7.1)(semantic-release@25.0.2(typescript@5.9.3))(typescript@5.9.3)':
+  '@kitiumai/config@2.0.1(eslint@9.39.1)(prettier@3.7.1)(semantic-release@25.0.2(typescript@5.9.3))(typescript@5.9.3)':
     dependencies:
       '@commitlint/config-conventional': 18.6.3
       '@eslint/js': 9.39.1
@@ -8635,7 +8635,7 @@ snapshots:
       - supports-color
       - typescript
 
-  '@kitiumai/lint@2.0.0(@types/node@24.10.1)(eslint@9.39.1)(graphql@15.10.1)(jest@29.7.0(@types/node@24.10.1)(ts-node@9.1.1(typescript@5.9.3)))(typescript@5.9.3)':
+  '@kitiumai/lint@2.0.1(@types/node@24.10.1)(eslint@9.39.1)(graphql@15.10.1)(jest@29.7.0(@types/node@24.10.1)(ts-node@9.1.1(typescript@5.9.3)))(typescript@5.9.3)':
     dependencies:
       '@eslint/js': 9.39.1
       '@next/eslint-plugin-next': 15.5.6
@@ -8678,7 +8678,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@kitiumai/logger@2.0.0':
+  '@kitiumai/logger@2.0.1':
     dependencies:
       '@opentelemetry/api': 1.9.0
       axios: 1.13.2
@@ -9596,7 +9596,7 @@ snapshots:
   camel-case@4.1.2:
     dependencies:
       pascal-case: 3.1.2
-      tslib: 2.2.0
+      tslib: 2.8.1
     optional: true
 
   camelcase@5.3.1: {}
@@ -11669,7 +11669,7 @@ snapshots:
 
   lower-case@2.0.2:
     dependencies:
-      tslib: 2.2.0
+      tslib: 2.8.1
     optional: true
 
   lru-cache@10.4.3: {}
@@ -11798,7 +11798,7 @@ snapshots:
   no-case@3.0.4:
     dependencies:
       lower-case: 2.0.2
-      tslib: 2.2.0
+      tslib: 2.8.1
     optional: true
 
   node-emoji@2.2.0:
@@ -12036,7 +12036,7 @@ snapshots:
   pascal-case@3.1.2:
     dependencies:
       no-case: 3.0.4
-      tslib: 2.2.0
+      tslib: 2.8.1
     optional: true
 
   path-exists@3.0.0: {}

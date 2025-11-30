@@ -46,6 +46,58 @@ const timeout = config.get('timeout');
 const all = config.getAll(); // deeply frozen, safe to share globally
 ```
 
+## Usage & Tree-Shaking
+
+### Subpath Imports (Recommended for Bundle Size)
+
+The test-core package provides modular subpath exports to help bundlers tree-shake unused utilities. Import only what you need:
+
+```typescript
+// ✅ Minimal — only async helpers
+import { retry, sleep, waitFor } from '@kitiumai/test-core/async';
+
+// ✅ Data generation only — no loggers or fixtures
+import { DataGenerators, Factories } from '@kitiumai/test-core/data';
+
+// ✅ Configuration only — standalone setup
+import { createConfigManager } from '@kitiumai/test-core/config';
+
+// ✅ Fixtures only — for complex test setups
+import { FixtureManager, createFixture } from '@kitiumai/test-core/fixtures';
+
+// ✅ Logger utilities only
+import { createLogger, expectLogs } from '@kitiumai/test-core/logger';
+
+// ✅ Mocks and spies only
+import { spyOn, createMockObject } from '@kitiumai/test-core/mocks';
+
+// ✅ HTTP mocking
+import { createHttpMockManager } from '@kitiumai/test-core/http';
+
+// ✅ Timing utilities
+import { measureTime, timeout, debounce } from '@kitiumai/test-core/timers';
+
+// ✅ Builders
+import { createBuilder, Sequence } from '@kitiumai/test-core/builders';
+```
+
+### Top-level Barrel (Works, But Larger)
+
+If you import from the top-level barrel, modern bundlers will still tree-shake unused exports:
+
+```typescript
+// ⚠️ Works but includes all utilities; bundler will tree-shake unused ones
+import { retry, DataGenerators, createLogger } from '@kitiumai/test-core';
+```
+
+### Build Optimization Tips
+
+1. **Use subpath imports in test suites** to guarantee minimal bundle surface across all bundlers.
+2. **For test utilities libraries**, export subpath imports so consumers only pay for what they use.
+3. **Verify bundling** with esbuild: `esbuild --bundle --minify --analyze src/index.ts` to see what's included.
+
+The package provides ESM and CommonJS dual builds (`dist/esm/` and `dist/cjs/`) with `sideEffects: false`, so tree-shaking works across all modern test runners and toolchains.
+
 ## Quick Start
 
 ```typescript

@@ -11,7 +11,7 @@
  * @returns Promise that rejects after timeout
  */
 export function timeout<T>(ms: number, message?: string): Promise<T> {
-  return new Promise((_, reject) => {
+  return new Promise((_resolve, reject) => {
     setTimeout(() => reject(new Error(message ?? `Operation timed out after ${ms}ms`)), ms);
   });
 }
@@ -118,7 +118,7 @@ export async function assertExecutionTime<T>(
  * @param delayMs Delay in milliseconds
  * @returns Delayed function that returns a promise
  */
-export function delayedFn<T extends (...args: unknown[]) => unknown>(
+export function delayedFunction<T extends (...args: unknown[]) => unknown>(
   function_: T,
   delayMs: number
 ): (...args: Parameters<T>) => Promise<ReturnType<T>> {

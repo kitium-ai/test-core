@@ -1,6 +1,6 @@
 {
   "name": "@kitiumai/test-core",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Core test utilities for enterprise testing - async helpers, builders, fixtures, mocks, and more",
   "type": "module",
   "sideEffects": false,
@@ -28,6 +28,61 @@
       "require": "./dist/cjs/public.cjs",
       "types": "./dist/types/public.d.ts"
     },
+    "./async": {
+      "import": "./dist/esm/async/index.js",
+      "require": "./dist/cjs/async/index.cjs",
+      "types": "./dist/types/async/index.d.ts"
+    },
+    "./builders": {
+      "import": "./dist/esm/builders/index.js",
+      "require": "./dist/cjs/builders/index.cjs",
+      "types": "./dist/types/builders/index.d.ts"
+    },
+    "./config": {
+      "import": "./dist/esm/config/index.js",
+      "require": "./dist/cjs/config/index.cjs",
+      "types": "./dist/types/config/index.d.ts"
+    },
+    "./data": {
+      "import": "./dist/esm/data/index.js",
+      "require": "./dist/cjs/data/index.cjs",
+      "types": "./dist/types/data/index.d.ts"
+    },
+    "./errors": {
+      "import": "./dist/esm/errors/index.js",
+      "require": "./dist/cjs/errors/index.cjs",
+      "types": "./dist/types/errors/index.d.ts"
+    },
+    "./fixtures": {
+      "import": "./dist/esm/fixtures/index.js",
+      "require": "./dist/cjs/fixtures/index.cjs",
+      "types": "./dist/types/fixtures/index.d.ts"
+    },
+    "./http": {
+      "import": "./dist/esm/http/index.js",
+      "require": "./dist/cjs/http/index.cjs",
+      "types": "./dist/types/http/index.d.ts"
+    },
+    "./logger": {
+      "import": "./dist/esm/logger/index.js",
+      "require": "./dist/cjs/logger/index.cjs",
+      "types": "./dist/types/logger/index.d.ts"
+    },
+    "./mocks": {
+      "import": "./dist/esm/mocks/index.js",
+      "require": "./dist/cjs/mocks/index.cjs",
+      "types": "./dist/types/mocks/index.d.ts"
+    },
+    "./timers": {
+      "import": "./dist/esm/timers/index.js",
+      "require": "./dist/cjs/timers/index.cjs",
+      "types": "./dist/types/timers/index.d.ts"
+    },
+    "./utils": {
+      "import": "./dist/esm/utils/index.js",
+      "require": "./dist/cjs/utils/index.cjs",
+      "types": "./dist/types/utils/index.d.ts"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -38,6 +93,7 @@
     "!dist/**/__tests__/**",
     "!dist/**/*.test.*",
     "!dist/**/*.spec.*",
+    "types.d.ts",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
@@ -117,14 +173,14 @@
     "release": "pnpm version && pnpm install --lockfile-only"
   },
   "dependencies": {
-    "@kitiumai/logger": "^2.0.0"
+    "@kitiumai/logger": "^2.0.1"
   },
   "peerDependencies": {
     "typescript": "^5.6.0"
   },
   "devDependencies": {
-    "@kitiumai/config": "^2.0.0",
-    "@kitiumai/lint": "^2.0.0",
+    "@kitiumai/config": "^2.0.1",
+    "@kitiumai/lint": "^2.0.1",
     "@kitiumai/scripts": "^1.0.0",
     "@eslint/eslintrc": "^3.1.0",
     "@changesets/cli": "^2.27.1",

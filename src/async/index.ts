@@ -107,23 +107,29 @@ export async function parallelLimit<T, R = unknown>(
   const results: R[] = [];
   const executing: Array<Promise<R>> = [];
 
+  // Helper function to wrap operation and handle cleanup
+  const executeWithCleanup = async (
+    item: T,
+    promiseReference: { current?: Promise<R> }
+  ): Promise<R> => {
+    try {
+      const result = await operation(item);
+      results.push(result);
+      return result;
+    } finally {
+      if (promiseReference.current) {
+        const index = executing.indexOf(promiseReference.current);
+        if (index > -1) {
+          void executing.splice(index, 1);
+        }
+      }
+    }
+  };
+
   for (const item of items) {
-    const promise = operation(item)
-      .then((result) => {
-        results.push(result);
-        const index = executing.indexOf(promise);
-        if (index > -1) {
-          void executing.splice(index, 1);
-        }
-        return result;
-      })
-      .catch((error) => {
-        const index = executing.indexOf(promise);
-        if (index > -1) {
-          void executing.splice(index, 1);
-        }
-        throw error;
-      });
+    const promiseReference: { current?: Promise<R> } = {};
+    const promise = executeWithCleanup(item, promiseReference);
+    promiseReference.current = promise;
 
     executing.push(promise);
 
@@ -151,9 +157,9 @@ export function createDeferred<T>(): Deferred<T> {
   let resolve!: (value: T | PromiseLike<T>) => void;
   let reject!: (reason?: unknown) => void;
 
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
+  const promise = new Promise<T>((_resolve, _reject) => {
+    resolve = _resolve;
+    reject = _reject;
   });
 
   return { promise, resolve, reject };

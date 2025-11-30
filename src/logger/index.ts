@@ -237,5 +237,8 @@ export function expectLogs(testLogger: TestLogger, expectation: LogExpectation):
   return filtered;
 }
 
-// Default export for backward compatibility
+// Export class as named export (preferred)
+export { TestLoggerWrapper };
+
+// eslint-disable-next-line import/no-default-export -- Default export for backward compatibility
 export default TestLoggerWrapper;

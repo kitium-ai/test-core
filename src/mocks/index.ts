@@ -19,7 +19,7 @@ export type MockFunction<T extends (...args: unknown[]) => unknown> = T & {
  * Create a mock function
  * Framework-agnostic - works with any test runner
  */
-export function createMockFn<T extends (...args: unknown[]) => unknown>(
+export function createMockFunction<T extends (...args: unknown[]) => unknown>(
   implementation?: T
 ): MockFunction<T> {
   const calls: Array<Parameters<T>> = [];
@@ -90,7 +90,7 @@ export function createMockObject<T extends Record<string, unknown>>(
 
   for (const method of methods) {
     const methodKey = String(method);
-    mock[methodKey] = createMockFn();
+    mock[methodKey] = createMockFunction();
   }
 
   return mock as MockResult;
@@ -109,7 +109,9 @@ export function spyOn<T extends Record<string, unknown>, K extends keyof T>(
     throw new Error(`Cannot spy on non-function property: ${String(method)}`);
   }
 
-  const spy = createMockFn(original as T[K] extends (...args: unknown[]) => unknown ? T[K] : never);
+  const spy = createMockFunction(
+    original as T[K] extends (...args: unknown[]) => unknown ? T[K] : never
+  );
   object[method] = spy as T[K];
 
   return spy as T[K] extends (...args: unknown[]) => unknown ? MockFunction<T[K]> : never;

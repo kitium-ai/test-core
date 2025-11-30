@@ -172,4 +172,8 @@ export const resetConfig = (): void => {
   instance = null;
 };
 
+// Export class as named export (preferred)
+export { ConfigManager };
+
+// eslint-disable-next-line import/no-default-export
 export default ConfigManager;
