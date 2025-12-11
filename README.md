@@ -1,600 +1,473 @@
 # @kitiumai/test-core
 
-Core test utilities and shared functionality used across all test frameworks. Provides foundational utilities for data generation, configuration management, logging, and common async operations.
+**Enterprise-Grade Comprehensive Testing Utilities**
 
-## Public API surface
+A feature-rich, modular testing library that provides everything needed for modern, enterprise-scale testing. From data generation and mock management to AI-powered test optimization and advanced browser testing, `@kitiumai/test-core` streamlines test development and execution.
 
-`@kitiumai/test-core` now exposes a single curated entry point that aligns with the `docs/architecture-review.md` guidance. Import from the root and tree-shake only what you need:
+## What is This Package?
 
-```ts
-import {
-  createLogger,
-  createConfigManager,
-  waitFor,
-  DataGenerators,
-  Builder,
-} from '@kitiumai/test-core';
-```
+`@kitiumai/test-core` is a comprehensive testing utility library that consolidates best practices from industry-leading testing frameworks. It provides:
 
-The public surface is snapshot-tested to guard against accidental breakage.
+- **10 specialized testing modules** covering performance, accessibility, contracts, chaos engineering, visual regression, browser automation, security, orchestration, analytics, and AI-powered testing
+- **Builder and Factory patterns** for constructing complex test objects with fluent APIs
+- **Mock management** with HTTP mocking, fixtures, and comprehensive spying capabilities
+- **Advanced async utilities** including retry logic, deferred promises, and timing utilities
+- **Configuration management** with schema validation and environment awareness
+- **Structured logging** with mock loggers for test isolation
+- **Data generation** with customizable generators for all common types
+
+## Why We Need This Package
+
+### Problems We Solve
+
+1. **Fragmented Ecosystem** - Different testing needs require pulling in multiple libraries with conflicting patterns
+2. **Boilerplate Reduction** - Common testing patterns (mocks, fixtures, builders) require repetitive setup
+3. **Enterprise Scale** - Organizations need advanced features like contract testing, chaos engineering, and security testing in one place
+4. **Test Quality** - Flakiness detection, AI-powered optimization, and visual regression detection are critical at scale
+5. **Browser Testing** - Cross-browser, mobile responsiveness, and load testing need integrated solutions
+6. **Developer Experience** - Unified API surface makes testing faster and more maintainable
+
+## Competitor Comparison
+
+| Feature | Jest | Vitest | Mocha | **@kitiumai/test-core** |
+|---------|------|--------|-------|------------------------|
+| Test Runner | ✅ | ✅ | ✅ | 🔄 Agnostic |
+| Mocking | ✅ | ✅ | With Sinon | ✅ Built-in |
+| Data Factories | ❌ | ❌ | ❌ | ✅ Advanced |
+| Contract Testing | ❌ | ❌ | ❌ | ✅ |
+| Chaos Engineering | ❌ | ❌ | ❌ | ✅ |
+| Visual Regression | ❌ | ❌ | ❌ | ✅ |
+| Accessibility Testing | ❌ | ❌ | ❌ | ✅ |
+| Browser Automation | ❌ | ❌ | ❌ | ✅ |
+| Security Testing | ❌ | ❌ | ❌ | ✅ |
+| Test Orchestration | ❌ | ❌ | ❌ | ✅ |
+| AI-Powered Testing | ❌ | ❌ | ❌ | ✅ |
+| Analytics & Reporting | ❌ | ❌ | ❌ | ✅ |
+| Schema Validation | ❌ | ❌ | ❌ | ✅ |
+
+## Unique Selling Points (USP)
+
+1. **All-in-One Solution** - No need for 10 different libraries; everything is integrated and battle-tested
+2. **Framework Agnostic** - Works with Jest, Vitest, Mocha, or any testing framework
+3. **Enterprise Features** - Contract testing, chaos engineering, and security testing built-in
+4. **AI Integration** - Generate tests, optimize test suites, and predict failures with AI
+5. **Advanced Analytics** - Track flakiness, performance regressions, and test coverage in real-time
+6. **Modular Exports** - Tree-shake only what you need; zero unused code in production
+7. **Type-Safe** - Full TypeScript support with comprehensive type definitions
+8. **Mock Loggers** - Isolated testing without spawning timers or background tasks
 
 ## Installation
 
 ```bash
 npm install @kitiumai/test-core
+
+# or with pnpm
+pnpm add @kitiumai/test-core
+
+# or with yarn
+yarn add @kitiumai/test-core
 ```
 
-## Features
+### Peer Dependencies
 
-- 🔄 **Retry Logic** - Retry operations with exponential backoff
-- ⏱️ **Async Utilities** - Wait for conditions, sleep, deferred promises
-- 📊 **Data Generation** - Comprehensive test data factories and generators
-- ⚙️ **Configuration** - Environment-aware configuration management
-- 📝 **Logging** - Structured logging with levels and context
-- 🔧 **Utilities** - Deep clone, merge, sanitization helpers
-
-## Configuration with schema enforcement
-
-The configuration manager validates inputs (including environment overrides) using a schema and returns an immutable snapshot suitable for global test setup.
-
-```ts
-import { createConfigManager } from '@kitiumai/test-core';
-
-const config = createConfigManager({ baseUrl: 'https://example.com' });
-
-const timeout = config.get('timeout');
-const all = config.getAll(); // deeply frozen, safe to share globally
-```
-
-## Usage & Tree-Shaking
-
-### Subpath Imports (Recommended for Bundle Size)
-
-The test-core package provides modular subpath exports to help bundlers tree-shake unused utilities. Import only what you need:
-
-```typescript
-// ✅ Minimal — only async helpers
-import { retry, sleep, waitFor } from '@kitiumai/test-core/async';
-
-// ✅ Data generation only — no loggers or fixtures
-import { DataGenerators, Factories } from '@kitiumai/test-core/data';
-
-// ✅ Configuration only — standalone setup
-import { createConfigManager } from '@kitiumai/test-core/config';
-
-// ✅ Fixtures only — for complex test setups
-import { FixtureManager, createFixture } from '@kitiumai/test-core/fixtures';
-
-// ✅ Logger utilities only
-import { createLogger, expectLogs } from '@kitiumai/test-core/logger';
-
-// ✅ Mocks and spies only
-import { spyOn, createMockObject } from '@kitiumai/test-core/mocks';
-
-// ✅ HTTP mocking
-import { createHttpMockManager } from '@kitiumai/test-core/http';
-
-// ✅ Timing utilities
-import { measureTime, timeout, debounce } from '@kitiumai/test-core/timers';
-
-// ✅ Builders
-import { createBuilder, Sequence } from '@kitiumai/test-core/builders';
-```
-
-### Top-level Barrel (Works, But Larger)
-
-If you import from the top-level barrel, modern bundlers will still tree-shake unused exports:
-
-```typescript
-// ⚠️ Works but includes all utilities; bundler will tree-shake unused ones
-import { retry, DataGenerators, createLogger } from '@kitiumai/test-core';
-```
-
-### Build Optimization Tips
-
-1. **Use subpath imports in test suites** to guarantee minimal bundle surface across all bundlers.
-2. **For test utilities libraries**, export subpath imports so consumers only pay for what they use.
-3. **Verify bundling** with esbuild: `esbuild --bundle --minify --analyze src/index.ts` to see what's included.
-
-The package provides ESM and CommonJS dual builds (`dist/esm/` and `dist/cjs/`) with `sideEffects: false`, so tree-shaking works across all modern test runners and toolchains.
+- Node.js 18.0.0 or higher
+- TypeScript 5.6.0+ (optional, for type checking)
 
 ## Quick Start
 
 ```typescript
-import { retry, waitUntil, sleep, DataGenerators, Factories } from '@kitiumai/test-core';
+import {
+  createBuilder,
+  DataGenerators,
+  createFixture,
+  createHttpMockManager,
+  createLogger,
+  retry,
+  waitFor,
+  benchmark,
+  auditAccessibility,
+  visualTest,
+  runSecurityTests,
+  generateTestsWithAI,
+} from '@kitiumai/test-core';
 
-// Retry an operation
-const result = await retry(() => fetch('/api/data'), { maxAttempts: 3, delayMs: 1000 });
-
-// Wait for condition
-await waitUntil(() => element.isVisible(), { timeoutMs: 5000 });
+// Build complex test objects
+const userBuilder = createBuilder({ id: '1', name: 'John' });
+const user = userBuilder.with({ name: 'Jane' }).build();
 
 // Generate test data
-const user = Factories.user({ email: 'test@example.com' });
 const email = DataGenerators.email();
-```
-
-## Logging with deterministic retrieval
-
-The test logger stores structured entries in-memory and exposes deterministic retrieval helpers.
-
-```ts
-import { createLogger, expectLogs, LogLevel } from '@kitiumai/test-core';
-
-const logger = createLogger(LogLevel.INFO, { userId: '123' });
-
-logger.info('user login');
-
-const loginLogs = expectLogs(logger, { level: LogLevel.INFO, contains: ['login'], minimum: 1 });
-```
-
-## Framework recipes
-
-Opinionated setups for Jest, Vitest, and Playwright live in [`docs/recipes/frameworks.md`](./docs/recipes/frameworks.md).
-
-## API Reference
-
-### Utilities
-
-#### `retry<T>(fn, options?)`
-
-Retry a function with exponential backoff.
-
-**Parameters:**
-
-- `fn: () => Promise<T>` - Function to retry
-- `options?: { maxAttempts?: number; delayMs?: number; backoffMultiplier?: number; onRetry?: (attempt: number, error: Error) => void }`
-
-**Returns:** `Promise<T>`
-
-**Example:**
-
-```typescript
-const data = await retry(
-  async () => {
-    const response = await fetch('/api/data');
-    if (!response.ok) throw new Error('Failed');
-    return response.json();
-  },
-  {
-    maxAttempts: 3,
-    delayMs: 1000,
-    backoffMultiplier: 2,
-    onRetry: (attempt, error) => {
-      console.log(`Attempt ${attempt} failed:`, error.message);
-    },
-  }
-);
-```
-
-#### `waitUntil(condition, options?)`
-
-Wait for a condition to become true with polling.
-
-**Parameters:**
-
-- `condition: () => boolean | Promise<boolean>` - Condition function
-- `options?: { timeoutMs?: number; pollIntervalMs?: number; message?: string }`
-
-**Returns:** `Promise<void>`
-
-**Example:**
-
-```typescript
-await waitUntil(
-  async () => {
-    const response = await fetch('/api/status');
-    const data = await response.json();
-    return data.ready === true;
-  },
-  {
-    timeoutMs: 10000,
-    pollIntervalMs: 500,
-    message: 'Service not ready',
-  }
-);
-```
-
-#### `sleep(ms)`
-
-Sleep for specified milliseconds.
-
-**Parameters:**
-
-- `ms: number` - Milliseconds to sleep
-
-**Returns:** `Promise<void>`
-
-**Example:**
-
-```typescript
-await sleep(1000); // Wait 1 second
-```
-
-#### `deepClone<T>(obj)`
-
-Deep clone an object.
-
-**Parameters:**
-
-- `obj: T` - Object to clone
-
-**Returns:** `T`
-
-**Example:**
-
-```typescript
-const original = { user: { name: 'John', age: 30 } };
-const cloned = deepClone(original);
-cloned.user.name = 'Jane'; // original is unchanged
-```
-
-#### `deepMerge<T>(target, source)`
-
-Deep merge two objects.
-
-**Parameters:**
-
-- `target: T` - Target object
-- `source: Partial<T>` - Source object
-
-**Returns:** `T`
-
-**Example:**
-
-```typescript
-const merged = deepMerge({ user: { name: 'John', age: 30 } }, { user: { age: 31 } });
-// Result: { user: { name: 'John', age: 31 } }
-```
-
-#### `createDeferred<T>()`
-
-Create a deferred promise with external resolve/reject control.
-
-**Returns:** `{ promise: Promise<T>; resolve: (value: T) => void; reject: (reason?: unknown) => void }`
-
-**Example:**
-
-```typescript
-const { promise, resolve, reject } = createDeferred<string>();
-
-setTimeout(() => resolve('Done!'), 1000);
-const result = await promise; // 'Done!'
-```
-
-#### `sanitizeForLogging(data, sensitiveKeys?)`
-
-Sanitize data by redacting sensitive fields.
-
-**Parameters:**
-
-- `data: unknown` - Data to sanitize
-- `sensitiveKeys?: string[]` - Keys to redact (default: ['password', 'token', 'secret', 'apiKey', 'authorization'])
-
-**Returns:** `unknown`
-
-**Example:**
-
-```typescript
-const sanitized = sanitizeForLogging({
-  username: 'john',
-  password: 'secret123',
-  email: 'john@example.com',
-});
-// Result: { username: 'john', password: '***REDACTED***', email: 'john@example.com' }
-```
-
-### Data Generation
-
-#### `DataGenerators`
-
-Comprehensive data generation utilities.
-
-**Available Generators:**
-
-- `string(length?, charset?)` - Random string
-- `number(min?, max?)` - Random number
-- `email()` - Random email address
-- `uuid()` - Random UUID
-- `boolean()` - Random boolean
-- `date(start?, end?)` - Random date
-- `phoneNumber()` - Random phone number
-- `username()` - Random username
-- `url()` - Random URL
-- `array<T>(generator, length?)` - Array of generated values
-- `object<T>(generators)` - Object with generated values
-- `firstName()` - Random first name
-- `lastName()` - Random last name
-- `fullName()` - Random full name
-- `companyName()` - Random company name
-- `address()` - Random street address
-- `city()` - Random city
-- `country()` - Random country
-- `zipCode()` - Random ZIP code
-- `ipAddress()` - Random IP address
-- `creditCardNumber()` - Masked credit card number
-- `slug()` - Random slug
-- `locale()` - Random locale
-- `isoTimestamp()` - ISO timestamp
-- `pastDate(daysAgo?)` - Random past date
-- `futureDate(daysFromNow?)` - Random future date
-- `enum<T>(values)` - Random enum value
-- `weighted<T>(options)` - Weighted random choice
-- `hexColor()` - Random hex color
-- `json<T>(depth?)` - Random JSON object
-
-**Example:**
-
-```typescript
-import { DataGenerators } from '@kitiumai/test-core';
-
-const email = DataGenerators.email(); // 'abc123@xyz456.com'
-const uuid = DataGenerators.uuid(); // 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
-const user = DataGenerators.object({
-  name: () => DataGenerators.fullName(),
-  email: () => DataGenerators.email(),
-  age: () => DataGenerators.number(18, 65),
-});
-```
-
-#### `createFactory<T>(defaultFactory)`
-
-Create a factory function for generating test data.
-
-**Parameters:**
-
-- `defaultFactory: (seed: number) => T` - Factory function that uses seed
-
-**Returns:** `(overrides?: Partial<T>) => T`
-
-**Example:**
-
-```typescript
-const userFactory = createFactory((seed) => ({
-  id: seed,
-  email: `user${seed}@example.com`,
-  name: `User ${seed}`,
-}));
-
-const user1 = userFactory(); // { id: 1, email: 'user1@example.com', name: 'User 1' }
-const user2 = userFactory({ name: 'Custom Name' }); // { id: 2, email: 'user2@example.com', name: 'Custom Name' }
-```
-
-#### `createFactoryWithBuilder<T>(defaultFactory, relations?)`
-
-Create a factory with relationship builders.
-
-**Parameters:**
-
-- `defaultFactory: (seed: number) => T` - Factory function
-- `relations?: Record<string, (seed: number) => unknown>` - Relationship generators
-
-**Returns:** `(overrides?: Partial<T> & Record<string, unknown>) => T`
-
-**Example:**
-
-```typescript
-const postFactory = createFactoryWithBuilder((seed) => ({ id: seed, title: `Post ${seed}` }), {
-  author: (seed) => ({ id: seed, name: `Author ${seed}` }),
+const users = DataGenerators.batch('user', 10);
+
+// Create fixtures
+const dbFixture = createFixture({
+  setup: async () => { /* ... */ },
+  teardown: async () => { /* ... */ },
 });
 
-const post = postFactory({ title: 'Custom Title' });
-// { id: 1, title: 'Custom Title', author: { id: 1, name: 'Author 1' } }
+// Mock HTTP requests
+const mockManager = createHttpMockManager();
+mockManager.mock('GET', '/users', { status: 200, body: { users: [] } });
+
+// Create loggers
+const logger = createLogger();
+logger.info('Test started');
+
+// Async utilities
+await retry(() => fetchData(), { maxAttempts: 3 });
+await waitFor(() => element.isVisible());
+
+// Performance testing
+benchmark(() => expensiveOp(), { iterations: 100 });
+
+// Accessibility
+const audit = auditAccessibility(document);
+console.log(audit.passed);
+
+// Visual testing
+await visualTest('homepage', element);
+
+// Security
+const vulns = await runSecurityTests(html);
+
+// AI testing
+const tests = generateTestsWithAI(sourceCode);
 ```
 
-#### `Factories`
+## Public API Surface
 
-Pre-built factory functions for common entities.
+The package exports over 100+ functions and classes organized into logical modules:
 
-**Available Factories:**
+### Builder Pattern
+- `Builder` - Fluent builder for object construction
+- `Sequence` - Sequence generator for unique values
+- `createBuilder(initial)` - Create builder instance
+- `createBuilderFactory(template)` - Create builder factories
 
-- `Factories.user(overrides?)` - User factory
-- `Factories.post(overrides?)` - Post factory
-- `Factories.comment(overrides?)` - Comment factory
-- `Factories.apiResponse(overrides?)` - API response factory
-- `Factories.company(overrides?)` - Company factory
-- `Factories.product(overrides?)` - Product factory
-- `Factories.order(overrides?)` - Order factory
-- `Factories.todo(overrides?)` - Todo factory
-- `Factories.article(overrides?)` - Article factory
-- `Factories.profile(overrides?)` - Profile factory
+### Data Generation & Factories
+- `DataGenerators` - Comprehensive data generation utilities
+- `Factory` - Base factory class
+- `Factories` - Pre-built factory functions
+- `createFactory(definition)` - Create object factories
+- `createFactoryWithBuilder(builder)` - Combine factory and builder
 
-**Example:**
+### Fixtures
+- `FixtureManager` - Global fixture management
+- `createFixture(config)` - Create test fixtures
+- `getGlobalFixtureManager()` - Get global fixture manager
+- `resetGlobalFixtureManager()` - Reset fixture manager
 
-```typescript
-import { Factories } from '@kitiumai/test-core';
-
-const user = Factories.user({ email: 'custom@example.com' });
-const post = Factories.post({ authorId: user.id });
-```
+### Mocking & Spying
+- `createHttpMockManager()` - Create HTTP mock manager
+- `getGlobalHttpMockManager()` - Get global HTTP mock manager
+- `resetGlobalHttpMockManager()` - Reset HTTP mock manager
+- `HttpMockManager` - HTTP request mocking
+- `HttpResponses` - HTTP response utilities
+- `createMockFunction(impl?)` - Create mock function
+- `createMockObject(implementations)` - Create mock object
+- `spyOn(object, method)` - Spy on object methods
+- `restoreSpy(spy)` - Restore spied method
 
 ### Configuration
-
-#### `createConfigManager(initialConfig?)`
-
-Create a configuration manager instance.
-
-**Parameters:**
-
-- `initialConfig?: TestConfig` - Initial configuration
-
-**Returns:** `ConfigManager`
-
-**Example:**
-
-```typescript
-import { createConfigManager } from '@kitiumai/test-core';
-
-const config = createConfigManager({
-  timeout: 30000,
-  retries: 2,
-  verbose: true,
-});
-
-config.set('baseUrl', 'http://localhost:3000');
-const timeout = config.get('timeout');
-```
-
-#### `getConfigManager()`
-
-Get the global configuration manager instance.
-
-**Returns:** `ConfigManager`
-
-**Example:**
-
-```typescript
-import { getConfigManager } from '@kitiumai/test-core';
-
-const config = getConfigManager();
-const baseUrl = config.get('baseUrl');
-```
+- `createConfigManager(defaults)` - Create config manager
+- `getConfigManager()` - Get global config manager
+- `resetConfig()` - Reset configuration
 
 ### Logging
+- `createLogger(level?, context?)` - Create test logger
+- `getTestLogger()` - Get global test logger
+- `expectLogs(fn, matcher)` - Assert log output
+- `LogLevel` - Logging levels enum
 
-#### `createLogger(level?, context?)`
+### Async Utilities
+- `createDeferred()` - Create deferred promise
+- `waitFor(condition, options)` - Wait for condition
+- `waitForValue(getter, predicate, options)` - Wait for value change
+- `retry(fn, options)` - Retry with backoff
+- `sleep(ms)` - Sleep for duration
+- `timeout(promise, ms)` - Timeout a promise
+- `withTimeout(fn, ms, message)` - Execute with timeout
 
-Create a logger instance.
+### Timing & Performance
+- `measureTime(fn)` - Measure execution time
+- `benchmark(fn, options)` - Benchmark function
+- `assertExecutionTime(fn, options)` - Assert execution time
+- `throttle(fn, ms)` - Throttle function calls
+- `debounce(fn, ms)` - Debounce function calls
+- `delayedFunction(fn, ms)` - Execute function with delay
+- `parallelLimit(tasks, limit)` - Run tasks with concurrency limit
 
-**Parameters:**
+### Contract Testing
+- `createContract(definition)` - Create API contract
+- `validateContract(contract, response)` - Validate contract
 
-- `level?: LogLevel` - Log level (DEBUG, INFO, WARN, ERROR)
-- `context?: LogContext` - Initial context
+### Accessibility Testing
+- `auditAccessibility(page, options)` - Audit accessibility
+- `detectCompatibilityIssues(html)` - Detect compatibility issues
 
-**Returns:** `Logger`
+### Visual Testing
+- `visualTest(name, element)` - Perform visual test
+- `takeScreenshot(element)` - Take screenshot
+- `compareScreenshots(name, screenshot)` - Compare screenshots
+- `createBaseline(name, element)` - Create visual baseline
 
-**Example:**
+### Security Testing
+- `runSecurityTests(content, options)` - Run security tests
+- `createSecurityRule(definition)` - Create security rule
+- `generateSecurityReport(results)` - Generate security report
+- `SECURITY_RULES` - Pre-defined security rules
 
+### Chaos Engineering
+- `injectNetworkChaos(fn, options)` - Inject network failures
+- `injectServiceFailure(fn, options)` - Inject service failures
+- `simulateLatency(fn, ms)` - Simulate latency
+- `simulateError(fn, error)` - Simulate error
+- `simulateTimeout(fn, ms)` - Simulate timeout
+- `ChaosOrchestrator` - Chaos engineering orchestration
+
+### Browser Testing
+- `testMobileResponsiveness(page, devices, testFn)` - Test mobile
+- `testCrossBrowser(fn, options)` - Test cross-browser
+- `mobileEmulation(page, device, testFn)` - Emulate mobile
+- `loadTest(url, options)` - Perform load test
+- `stressTest(fn, options)` - Perform stress test
+- `DEVICE_PRESETS` - Mobile device configurations
+
+### Test Orchestration & Analytics
+- `orchestrateTests(suites)` - Orchestrate test execution
+- `shardTests(tests, workerCount)` - Shard tests
+- `quarantineTests(tests, options)` - Quarantine flaky tests
+- `TestOrchestrator` - Test orchestration
+- `TestAnalytics` - Test metrics collection
+- `trackTestMetrics(metrics)` - Track test metrics
+- `analyzeFlakiness(metrics, options)` - Analyze test flakiness
+- `generateAnalyticsReport(analytics)` - Generate report
+
+### AI-Powered Testing
+- `generateTestsWithAI(code, options)` - Generate tests with AI
+- `optimizeTestsWithAI(tests, options)` - Optimize tests
+- `getAITestSuggestions(code, existing?, options)` - Get suggestions
+- `predictTestFailures(code)` - Predict failures
+- `generateScenariosFromRequirements(requirements)` - Generate from requirements
+
+### Utilities
+- `deepClone(obj)` - Deep clone object
+- `deepMerge(obj1, obj2)` - Deep merge objects
+- `sanitizeForLogging(obj)` - Sanitize sensitive data
+- `enhanceError(error, context)` - Enhance error object
+- `EnhancedTestError` - Extended error class
+- `TestErrorMessages` - Error message constants
+- `BuilderGenerators` - Utility for generating builders
+
+## Usage Examples
+
+### Example 1: Building Complex Test Objects
 ```typescript
-import { createLogger, LogLevel } from '@kitiumai/test-core';
+import { createBuilder, DataGenerators } from '@kitiumai/test-core';
 
-const logger = createLogger(LogLevel.DEBUG, { testId: 'test-123' });
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  roles: string[];
+}
 
-logger.info('Test started', { userId: 'user-456' });
-logger.error('Test failed', new Error('Something went wrong'), { step: 'login' });
+const userBuilder = createBuilder<User>({
+  id: DataGenerators.uuid(),
+  name: 'Default User',
+  email: 'user@example.com',
+  roles: ['user'],
+});
 
-const logs = logger.getLogs(LogLevel.ERROR);
-logger.clear();
+const adminUser = userBuilder
+  .with({ name: 'Admin', roles: ['admin', 'user'] })
+  .build();
 ```
 
-## Examples
-
-### Retry with Backoff
-
+### Example 2: HTTP Mocking in Tests
 ```typescript
-import { retry } from '@kitiumai/test-core';
+import { createHttpMockManager } from '@kitiumai/test-core';
 
-const fetchWithRetry = async (url: string) => {
-  return await retry(
-    async () => {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return response.json();
-    },
+describe('User API Integration', () => {
+  let mockManager;
+
+  beforeEach(() => {
+    mockManager = createHttpMockManager();
+  });
+
+  test('should fetch user successfully', async () => {
+    mockManager.mock('GET', '/users/123', {
+      status: 200,
+      body: { id: '123', name: 'John' }
+    });
+
+    const response = await fetch('/users/123');
+    const data = await response.json();
+    
+    expect(data.name).toBe('John');
+    await mockManager.verify('GET', '/users/123');
+  });
+});
+```
+
+### Example 3: Performance Testing
+```typescript
+import { benchmark, assertExecutionTime } from '@kitiumai/test-core';
+
+test('search should complete within 500ms', async () => {
+  await assertExecutionTime(
+    async () => search('query'),
+    { maxTime: 500 }
+  );
+});
+
+test('should benchmark sorting algorithm', () => {
+  const results = benchmark(
+    () => expensiveSort([...largeArray]),
+    { iterations: 100, warmupIterations: 10 }
+  );
+  
+  console.log(`Average: ${results.averageTime}ms`);
+});
+```
+
+### Example 4: Chaos Engineering
+```typescript
+import { injectNetworkChaos, simulateLatency } from '@kitiumai/test-core';
+
+test('should handle network failures gracefully', async () => {
+  const response = await injectNetworkChaos(
+    async () => fetchUserData(),
     {
-      maxAttempts: 5,
-      delayMs: 1000,
-      backoffMultiplier: 2,
-      onRetry: (attempt, error) => {
-        console.log(`Retry ${attempt}: ${error.message}`);
-      },
+      latency: 500,
+      jitterPercent: 20,
+      dropRate: 0.1,
     }
   );
-};
+  
+  expect(response).toBeDefined();
+});
 ```
 
-### Wait for Async Condition
-
+### Example 5: Contract Testing
 ```typescript
-import { waitUntil } from '@kitiumai/test-core';
+import { createContract, validateContract } from '@kitiumai/test-core';
 
-// Wait for API to be ready
-await waitUntil(
-  async () => {
-    try {
-      const response = await fetch('/api/health');
-      return response.ok;
-    } catch {
-      return false;
-    }
+const userContract = createContract({
+  endpoint: 'GET /users/:id',
+  request: {
+    method: 'GET',
+    path: '/users/123',
   },
-  {
-    timeoutMs: 30000,
-    pollIntervalMs: 1000,
-    message: 'API not ready',
-  }
-);
-```
-
-### Generate Test Data
-
-```typescript
-import { DataGenerators, Factories } from '@kitiumai/test-core';
-
-// Generate single values
-const email = DataGenerators.email();
-const phone = DataGenerators.phoneNumber();
-const address = DataGenerators.address();
-
-// Generate complex objects
-const users = DataGenerators.array(() => Factories.user(), 10);
-
-// Generate with relationships
-const posts = DataGenerators.array(() => Factories.post({ authorId: DataGenerators.uuid() }), 5);
-```
-
-### Configuration Management
-
-```typescript
-import { getConfigManager } from '@kitiumai/test-core';
-
-const config = getConfigManager();
-
-// Set configuration
-config.set('baseUrl', process.env.BASE_URL || 'http://localhost:3000');
-config.set('timeout', 30000);
-
-// Get configuration
-const baseUrl = config.get('baseUrl');
-const timeout = config.get('timeout');
-
-// Merge configuration
-config.merge({ timeout: 60000, retries: 3 });
-
-// Get all configuration
-const allConfig = config.getAll();
-```
-
-### Structured Logging
-
-```typescript
-import { createLogger, LogLevel } from '@kitiumai/test-core';
-
-const logger = createLogger(LogLevel.INFO, {
-  testSuite: 'user-service',
-  environment: 'test',
+  response: {
+    status: 200,
+    schema: {
+      id: 'string',
+      name: 'string',
+      email: 'string',
+    },
+  },
 });
 
-logger.debug('Debug message', { userId: '123' });
-logger.info('Test started', { testName: 'login-test' });
-logger.warn('Deprecated API used', { endpoint: '/api/v1/users' });
-logger.error('Test failed', new Error('Connection timeout'), {
-  endpoint: '/api/users',
-  attempt: 3,
+test('API respects user contract', async () => {
+  const response = await fetch('/users/123');
+  const valid = await validateContract(userContract, response);
+  
+  expect(valid).toBe(true);
 });
-
-// Get logs by level
-const errorLogs = logger.getLogs(LogLevel.ERROR);
 ```
 
-## TypeScript Support
-
-Full TypeScript support with comprehensive type definitions.
-
+### Example 6: Accessibility Testing
 ```typescript
-import type { TestConfig, LogLevel, LogContext } from '@kitiumai/test-core';
+import { auditAccessibility } from '@kitiumai/test-core';
+
+test('page should be WCAG2AA compliant', () => {
+  const audit = auditAccessibility(document, {
+    standards: ['WCAG2AA'],
+    skipHidden: true,
+  });
+
+  expect(audit.passed).toBe(true);
+  expect(audit.violations.errors).toHaveLength(0);
+});
 ```
+
+### Example 7: AI-Powered Test Generation
+```typescript
+import { generateTestsWithAI } from '@kitiumai/test-core';
+
+test('should generate tests automatically', async () => {
+  const sourceCode = `
+    export function calculateTotal(items: Item[]): number {
+      return items.reduce((sum, item) => sum + item.price, 0);
+    }
+  `;
+
+  const generatedTests = generateTestsWithAI(sourceCode, {
+    framework: 'jest',
+    coverage: { statements: 90, branches: 85 },
+  });
+
+  expect(generatedTests.length).toBeGreaterThan(0);
+});
+```
+
+## Configuration
+
+The package can be configured via environment variables:
+
+```bash
+# Test timeout (ms)
+TEST_TIMEOUT=30000
+
+# Logging level
+LOG_LEVEL=info
+
+# Enable debug output
+DEBUG=@kitiumai/test-core:*
+
+# API base URL for testing
+API_URL=http://localhost:3000
+
+# Number of parallel test workers
+PARALLEL_WORKERS=4
+```
+
+## Best Practices
+
+1. **Use Builders for Complex Objects** - Reduces boilerplate and improves readability
+2. **Isolate with Fixtures** - Use fixtures for setup/teardown to avoid side effects
+3. **Mock External Dependencies** - Use HTTP mocking for API calls
+4. **Test Performance** - Use benchmark and assertExecutionTime regularly
+5. **Leverage AI** - Use AI-powered testing for better coverage
+6. **Monitor Analytics** - Track flakiness and performance regressions
+7. **Clean Up Resources** - Always call teardown for fixtures and mocks
+8. **Shard Tests** - Use test sharding in CI for faster execution
+
+## Performance Tips
+
+- **Tree-shake unused exports** - Only import what you need
+- **Use mock loggers** - Avoid creating real loggers in test setup
+- **Batch operations** - Use `parallelLimit` to control concurrency
+- **Cache fixtures** - Reuse fixtures across test suites
+- **Enable test sharding** - Distribute tests across workers
+
+## Browser Support
+
+`@kitiumai/test-core` works with:
+- Chrome/Chromium 90+
+- Firefox 88+
+- Safari 14+
+- Edge 90+
 
 ## License
 
 MIT
+
+## Support
+
+For issues, questions, or suggestions, please open an issue on GitHub or contact the KitiumAI team.
+
+---
+
+**Made with ❤️ by KitiumAI**
