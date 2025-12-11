@@ -19,7 +19,14 @@ export default [
   ...eslintTypeScriptConfig,
   eslintJestConfig,
   {
-    ignores: ['dist/**', 'node_modules/**', '*.config.js', '*.config.cjs', '*.d.ts'],
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      '*.config.js',
+      '*.config.cjs',
+      '*.d.ts',
+      '.prettierrc.*',
+    ],
   },
   {
     name: 'test-core-no-restricted-imports-fix',

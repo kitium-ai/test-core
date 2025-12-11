@@ -184,3 +184,14 @@ declare module '@kitiumai/test-core/utils' {
   export function deepMerge(...args: any[]): any;
   export function sanitizeForLogging(...args: any[]): any;
 }
+
+declare module '@kitiumai/config/vitest.config.base.js' {
+  export type VitestBaseConfig = Record<string, unknown>;
+  const config: VitestBaseConfig;
+  export default config;
+}
+
+declare module 'vitest/config' {
+  export type UserConfigExport = Record<string, unknown>;
+  export function defineConfig(config: UserConfigExport): UserConfigExport;
+}

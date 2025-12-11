@@ -87,3 +87,123 @@ export {
   withTimeout,
 } from './timers';
 export { deepClone, deepMerge, sanitizeForLogging } from './utils';
+
+// Performance testing utilities
+export {
+  benchmark,
+  type BenchmarkResult,
+  loadTest,
+  type LoadTestOptions,
+  type LoadTestResult,
+  stressTest,
+  type StressTestOptions,
+  type StressTestResult,
+} from './performance';
+
+// Visual testing utilities
+export {
+  compareScreenshots,
+  createBaseline,
+  type ScreenshotOptions,
+  takeScreenshot,
+  visualTest,
+  type VisualTestOptions,
+} from './visual';
+
+// Accessibility testing utilities
+export {
+  type AccessibilityAuditOptions,
+  type AccessibilityAuditResult,
+  auditAccessibility,
+} from './accessibility';
+
+// Contract testing utilities
+export {
+  type APIContract,
+  type ContractTestSuiteResult,
+  type ContractValidationError,
+  createContract,
+  validateContract,
+} from './contracts';
+
+// Chaos engineering utilities
+export {
+  type ChaosExperiment,
+  ChaosOrchestrator,
+  injectNetworkChaos,
+  injectServiceFailure,
+  simulateError,
+  simulateLatency,
+  simulateTimeout,
+} from './chaos';
+
+// Test orchestration utilities
+export {
+  orchestrateTests,
+  quarantineTests,
+  shardTests,
+  TestOrchestrator,
+  type TestShard,
+  type TestSuite,
+} from './orchestration';
+
+// Analytics utilities
+export {
+  analyzeFlakiness,
+  generateAnalyticsReport,
+  predictFailures,
+  TestAnalytics,
+  type TestAnalyticsResult,
+  type TestMetrics,
+  trackTestMetrics,
+} from './analytics';
+
+// Browser testing utilities
+export {
+  type BrowserCompatibilityIssue,
+  type BrowserConfig,
+  type BrowserInstance,
+  type BrowserMatrix,
+  type CrossBrowserTestOptions,
+  type CrossBrowserTestResult,
+  detectCompatibilityIssues,
+  DEVICE_PRESETS,
+  type DevicePreset,
+  generateCompatibilityReport,
+  mobileEmulation,
+  type MobileTestOptions,
+  testCrossBrowser,
+  testMobileResponsiveness,
+} from './browser';
+
+// Security testing utilities
+export {
+  createSecurityRule,
+  generateSecurityReport,
+  type HttpClient,
+  type OWASPCategory,
+  runSecurityTests,
+  SECURITY_RULES,
+  type SecurityCheck,
+  type SecurityFinding,
+  type SecurityRule,
+  type SecurityTestContext,
+  type SecurityTestOptions,
+  type SecurityTestResult,
+} from './security';
+
+// AI-powered testing utilities
+export {
+  type AIGeneratedTest,
+  type AITestAnalysis,
+  type AITestOptimization,
+  type AITestOptions,
+  type AITestSuggestion,
+  analyzeTestsWithAI,
+  generateScenariosFromRequirements,
+  generateTestsWithAI,
+  getAITestSuggestions,
+  optimizeTestsWithAI,
+  predictTestFailures,
+  type TestType,
+} from './ai';

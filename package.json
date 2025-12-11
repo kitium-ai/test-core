@@ -83,6 +83,56 @@
       "require": "./dist/cjs/utils/index.cjs",
       "types": "./dist/types/utils/index.d.ts"
     },
+    "./performance": {
+      "import": "./dist/esm/performance/index.js",
+      "require": "./dist/cjs/performance/index.cjs",
+      "types": "./dist/types/performance/index.d.ts"
+    },
+    "./visual": {
+      "import": "./dist/esm/visual/index.js",
+      "require": "./dist/cjs/visual/index.cjs",
+      "types": "./dist/types/visual/index.d.ts"
+    },
+    "./accessibility": {
+      "import": "./dist/esm/accessibility/index.js",
+      "require": "./dist/cjs/accessibility/index.cjs",
+      "types": "./dist/types/accessibility/index.d.ts"
+    },
+    "./contracts": {
+      "import": "./dist/esm/contracts/index.js",
+      "require": "./dist/cjs/contracts/index.cjs",
+      "types": "./dist/types/contracts/index.d.ts"
+    },
+    "./chaos": {
+      "import": "./dist/esm/chaos/index.js",
+      "require": "./dist/cjs/chaos/index.cjs",
+      "types": "./dist/types/chaos/index.d.ts"
+    },
+    "./orchestration": {
+      "import": "./dist/esm/orchestration/index.js",
+      "require": "./dist/cjs/orchestration/index.cjs",
+      "types": "./dist/types/orchestration/index.d.ts"
+    },
+    "./analytics": {
+      "import": "./dist/esm/analytics/index.js",
+      "require": "./dist/cjs/analytics/index.cjs",
+      "types": "./dist/types/analytics/index.d.ts"
+    },
+    "./browser": {
+      "import": "./dist/esm/browser/index.js",
+      "require": "./dist/cjs/browser/index.cjs",
+      "types": "./dist/types/browser/index.d.ts"
+    },
+    "./security": {
+      "import": "./dist/esm/security/index.js",
+      "require": "./dist/cjs/security/index.cjs",
+      "types": "./dist/types/security/index.d.ts"
+    },
+    "./ai": {
+      "import": "./dist/esm/ai/index.js",
+      "require": "./dist/cjs/ai/index.cjs",
+      "types": "./dist/types/ai/index.d.ts"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -142,7 +192,7 @@
   ],
   "scripts": {
     "build": "npm run clean && npm run build:esm && npm run build:cjs",
-    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:esm": "tsc -p tsconfig.esm.json && node ./scripts/rewrite-esm.mjs",
     "build:cjs": "tsc -p tsconfig.cjs.json && node ./scripts/rename-cjs.mjs",
     "build:clean": "npm run clean && npm run build",
     "watch": "tsc --watch",
@@ -173,7 +223,7 @@
     "release": "pnpm version && pnpm install --lockfile-only"
   },
   "dependencies": {
-    "@kitiumai/logger": "^3.0.0"
+    "@kitiumai/logger": "^3.0.1"
   },
   "peerDependencies": {
     "typescript": "^5.6.0"

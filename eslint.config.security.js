@@ -1,6 +1,6 @@
 import securityConfig from '@kitiumai/config/eslint.config.security.js';
 
-export default [
+export const securityLintConfig = [
   ...securityConfig,
   // Add your custom rules here
 ];

@@ -23,7 +23,10 @@ const pickRandom = <T>(items: readonly T[]): T => {
 /**
  * Generate random item from predefined list (DRY)
  */
-const pickFromList = <T>(items: readonly T[]) => (): T => pickRandom(items);
+const pickFromList =
+  <T>(items: readonly T[]) =>
+  (): T =>
+    pickRandom(items);
 
 /**
  * Create a factory for generating test data

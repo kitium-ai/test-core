@@ -90,7 +90,7 @@ class EnvironmentLoader {
     const environment = process.env;
     const overrides: Partial<TestConfig> = {};
 
-    const envMappings: Array<{ envKey: string; configKey: keyof TestConfig }> = [
+    const environmentMappings: Array<{ envKey: string; configKey: keyof TestConfig }> = [
       { envKey: 'TEST_TIMEOUT', configKey: 'timeout' },
       { envKey: 'TEST_RETRIES', configKey: 'retries' },
       { envKey: 'TEST_VERBOSE', configKey: 'verbose' },
@@ -101,7 +101,7 @@ class EnvironmentLoader {
       { envKey: 'DATABASE_URL', configKey: 'dbUrl' },
     ];
 
-    for (const { envKey, configKey } of envMappings) {
+    for (const { envKey, configKey } of environmentMappings) {
       if (environment[envKey] !== undefined) {
         overrides[configKey] = environment[envKey] as never;
       }

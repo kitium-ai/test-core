@@ -3,12 +3,12 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "commonjs",
-    "lib": ["ES2020"],
+    "lib": ["ES2020", "DOM"],
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "moduleResolution": "node",
     "types": ["node", "jest"]
   },
-  "include": ["src", "__tests__"],
+  "include": ["src", "__tests__", "vitest.config.ts", "types.d.ts"],
   "exclude": ["node_modules", "dist"]
 }
