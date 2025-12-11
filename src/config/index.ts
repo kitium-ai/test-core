@@ -52,26 +52,64 @@ const defaultConfig: ResolvedTestConfig = freezeDeep({
   headless: true,
 });
 
-const coerceBoolean = (value: unknown, fallback: boolean): boolean => {
-  if (typeof value === 'boolean') {
-    return value;
+/**
+ * Type coercion utilities (DRY - Extracted for reuse)
+ */
+class TypeCoercer {
+  static toBoolean(value: unknown, fallback: boolean): boolean {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      return value.toLowerCase() === 'true';
+    }
+    return fallback;
   }
-  if (typeof value === 'string') {
-    return value.toLowerCase() === 'true';
-  }
-  return fallback;
-};
 
-const coerceNumber = (value: unknown, fallback: number, options?: { minimum?: number }): number => {
-  const numericValue = typeof value === 'string' ? Number.parseInt(value, 10) : (value as number);
-  if (Number.isNaN(numericValue) || typeof numericValue !== 'number') {
-    return fallback;
+  static toNumber(value: unknown, fallback: number, options?: { minimum?: number }): number {
+    const numericValue = typeof value === 'string' ? Number.parseInt(value, 10) : (value as number);
+    if (Number.isNaN(numericValue) || typeof numericValue !== 'number') {
+      return fallback;
+    }
+    if (options?.minimum !== undefined && numericValue < options.minimum) {
+      return fallback;
+    }
+    return numericValue;
   }
-  if (options?.minimum !== undefined && numericValue < options.minimum) {
-    return fallback;
+}
+
+// Legacy exports for backward compatibility
+const coerceBoolean = TypeCoercer.toBoolean;
+const coerceNumber = TypeCoercer.toNumber;
+
+/**
+ * Environment loader (SRP - Separated from ConfigManager)
+ */
+class EnvironmentLoader {
+  static loadOverrides(): Partial<TestConfig> {
+    const environment = process.env;
+    const overrides: Partial<TestConfig> = {};
+
+    const envMappings: Array<{ envKey: string; configKey: keyof TestConfig }> = [
+      { envKey: 'TEST_TIMEOUT', configKey: 'timeout' },
+      { envKey: 'TEST_RETRIES', configKey: 'retries' },
+      { envKey: 'TEST_VERBOSE', configKey: 'verbose' },
+      { envKey: 'CI', configKey: 'ci' },
+      { envKey: 'HEADLESS', configKey: 'headless' },
+      { envKey: 'BASE_URL', configKey: 'baseUrl' },
+      { envKey: 'API_URL', configKey: 'apiUrl' },
+      { envKey: 'DATABASE_URL', configKey: 'dbUrl' },
+    ];
+
+    for (const { envKey, configKey } of envMappings) {
+      if (environment[envKey] !== undefined) {
+        overrides[configKey] = environment[envKey] as never;
+      }
+    }
+
+    return overrides;
   }
-  return numericValue;
-};
+}
 
 class ConfigManager {
   private config: ResolvedTestConfig;
@@ -81,7 +119,7 @@ class ConfigManager {
   }
 
   private buildConfig(initialConfig?: TestConfig): ResolvedTestConfig {
-    const environmentOverrides = this.loadEnvironmentOverrides();
+    const environmentOverrides = EnvironmentLoader.loadOverrides();
     const mergedInput: TestConfig = {
       ...initialConfig,
       ...environmentOverrides,
@@ -97,38 +135,6 @@ class ConfigManager {
     });
 
     return coerced;
-  }
-
-  private loadEnvironmentOverrides(): Partial<TestConfig> {
-    const environment = process.env;
-    const overrides: Partial<TestConfig> = {};
-
-    if (environment['TEST_TIMEOUT'] !== undefined) {
-      overrides.timeout = environment['TEST_TIMEOUT'];
-    }
-    if (environment['TEST_RETRIES'] !== undefined) {
-      overrides.retries = environment['TEST_RETRIES'];
-    }
-    if (environment['TEST_VERBOSE'] !== undefined) {
-      overrides.verbose = environment['TEST_VERBOSE'];
-    }
-    if (environment['CI'] !== undefined) {
-      overrides.ci = environment['CI'];
-    }
-    if (environment['HEADLESS'] !== undefined) {
-      overrides.headless = environment['HEADLESS'];
-    }
-    if (environment['BASE_URL'] !== undefined) {
-      overrides.baseUrl = environment['BASE_URL'];
-    }
-    if (environment['API_URL'] !== undefined) {
-      overrides.apiUrl = environment['API_URL'];
-    }
-    if (environment['DATABASE_URL'] !== undefined) {
-      overrides.dbUrl = environment['DATABASE_URL'];
-    }
-
-    return overrides;
   }
 
   get<T extends keyof ResolvedTestConfig>(key: T): ResolvedTestConfig[T] {

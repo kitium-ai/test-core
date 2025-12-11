@@ -37,51 +37,53 @@ export class HttpMockManager {
   }
 
   /**
+   * Create a method-specific mock handler (DRY helper)
+   */
+  private createMethodMock(
+    method: string,
+    response: HttpMockResponse
+  ): (request: HttpMockRequest) => HttpMockResponse {
+    return (request: HttpMockRequest) => {
+      if (request.method !== method) {
+        throw new Error(`Expected ${method} request, got ${request.method}`);
+      }
+      return response;
+    };
+  }
+
+  /**
    * Mock a GET request
    */
   mockGet(urlPattern: string | RegExp, response: HttpMockResponse): void {
-    this.mock(urlPattern, (request) => {
-      if (request.method !== 'GET') {
-        throw new Error(`Expected GET request, got ${request.method}`);
-      }
-      return response;
-    });
+    this.mock(urlPattern, this.createMethodMock('GET', response));
   }
 
   /**
    * Mock a POST request
    */
   mockPost(urlPattern: string | RegExp, response: HttpMockResponse): void {
-    this.mock(urlPattern, (request) => {
-      if (request.method !== 'POST') {
-        throw new Error(`Expected POST request, got ${request.method}`);
-      }
-      return response;
-    });
+    this.mock(urlPattern, this.createMethodMock('POST', response));
   }
 
   /**
    * Mock a PUT request
    */
   mockPut(urlPattern: string | RegExp, response: HttpMockResponse): void {
-    this.mock(urlPattern, (request) => {
-      if (request.method !== 'PUT') {
-        throw new Error(`Expected PUT request, got ${request.method}`);
-      }
-      return response;
-    });
+    this.mock(urlPattern, this.createMethodMock('PUT', response));
   }
 
   /**
    * Mock a DELETE request
    */
   mockDelete(urlPattern: string | RegExp, response: HttpMockResponse): void {
-    this.mock(urlPattern, (request) => {
-      if (request.method !== 'DELETE') {
-        throw new Error(`Expected DELETE request, got ${request.method}`);
-      }
-      return response;
-    });
+    this.mock(urlPattern, this.createMethodMock('DELETE', response));
+  }
+
+  /**
+   * Mock a PATCH request
+   */
+  mockPatch(urlPattern: string | RegExp, response: HttpMockResponse): void {
+    this.mock(urlPattern, this.createMethodMock('PATCH', response));
   }
 
   /**
@@ -150,60 +152,52 @@ export function resetGlobalHttpMockManager(): void {
 }
 
 /**
+ * Response builder helper (DRY)
+ */
+function createResponse(
+  status: number,
+  statusText: string,
+  body?: unknown,
+  includeHeaders = true
+): HttpMockResponse {
+  const response: HttpMockResponse = {
+    status,
+    statusText,
+    body,
+  };
+
+  if (includeHeaders && body !== undefined) {
+    response.headers = { 'Content-Type': 'application/json' };
+  }
+
+  return response;
+}
+
+/**
+ * Error response builder helper (DRY)
+ */
+function createErrorResponse(status: number, statusText: string, error?: string): HttpMockResponse {
+  return createResponse(status, statusText, { error: error ?? statusText });
+}
+
+/**
  * Common response helpers
  */
 export const HttpResponses = {
-  ok: (body?: unknown): HttpMockResponse => ({
-    status: 200,
-    statusText: 'OK',
-    headers: { 'Content-Type': 'application/json' },
-    body,
-  }),
+  ok: (body?: unknown): HttpMockResponse => createResponse(200, 'OK', body),
 
-  created: (body?: unknown): HttpMockResponse => ({
-    status: 201,
-    statusText: 'Created',
-    headers: { 'Content-Type': 'application/json' },
-    body,
-  }),
+  created: (body?: unknown): HttpMockResponse => createResponse(201, 'Created', body),
 
-  noContent: (): HttpMockResponse => ({
-    status: 204,
-    statusText: 'No Content',
-  }),
+  noContent: (): HttpMockResponse => createResponse(204, 'No Content', undefined, false),
 
-  badRequest: (error?: string): HttpMockResponse => ({
-    status: 400,
-    statusText: 'Bad Request',
-    headers: { 'Content-Type': 'application/json' },
-    body: { error: error ?? 'Bad Request' },
-  }),
+  badRequest: (error?: string): HttpMockResponse => createErrorResponse(400, 'Bad Request', error),
 
-  unauthorized: (): HttpMockResponse => ({
-    status: 401,
-    statusText: 'Unauthorized',
-    headers: { 'Content-Type': 'application/json' },
-    body: { error: 'Unauthorized' },
-  }),
+  unauthorized: (): HttpMockResponse => createErrorResponse(401, 'Unauthorized'),
 
-  forbidden: (): HttpMockResponse => ({
-    status: 403,
-    statusText: 'Forbidden',
-    headers: { 'Content-Type': 'application/json' },
-    body: { error: 'Forbidden' },
-  }),
+  forbidden: (): HttpMockResponse => createErrorResponse(403, 'Forbidden'),
 
-  notFound: (): HttpMockResponse => ({
-    status: 404,
-    statusText: 'Not Found',
-    headers: { 'Content-Type': 'application/json' },
-    body: { error: 'Not Found' },
-  }),
+  notFound: (): HttpMockResponse => createErrorResponse(404, 'Not Found'),
 
-  serverError: (error?: string): HttpMockResponse => ({
-    status: 500,
-    statusText: 'Internal Server Error',
-    headers: { 'Content-Type': 'application/json' },
-    body: { error: error ?? 'Internal Server Error' },
-  }),
+  serverError: (error?: string): HttpMockResponse =>
+    createErrorResponse(500, 'Internal Server Error', error),
 };

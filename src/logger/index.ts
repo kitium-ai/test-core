@@ -8,7 +8,6 @@ import { randomUUID } from 'node:crypto';
 import {
   createLogger as createCoreLogger,
   getLogger,
-  getPresetConfig,
   type ILogger,
   type LogContext as LoggerLogContext,
   LogLevel,
@@ -186,11 +185,11 @@ const globalStorage = new TestLogStorage();
  * Uses @kitiumai/logger with test-specific features
  */
 export function createLogger(level?: LogLevel, context?: Partial<LoggerLogContext>): TestLogger {
-  const loggerConfig = getPresetConfig('development', {
+  // Use createCoreLogger with preset and overrides as per API_REFERENCES.md
+  const logger = createCoreLogger('development', {
     logLevel: level ?? LogLevel.INFO,
     serviceName: 'test-core',
   });
-  const logger = createCoreLogger(loggerConfig);
   return new TestLoggerWrapper(logger, globalStorage, context);
 }
 

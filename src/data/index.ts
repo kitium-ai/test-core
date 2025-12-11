@@ -5,6 +5,9 @@
 export type Generator<T> = (seed?: number) => T;
 export type PartialFactory<T> = (overrides?: Partial<T>) => T;
 
+/**
+ * Random selection helper (DRY)
+ */
 const pickRandom = <T>(items: readonly T[]): T => {
   if (items.length === 0) {
     throw new Error('Cannot pick a value from an empty collection');
@@ -16,6 +19,11 @@ const pickRandom = <T>(items: readonly T[]): T => {
   }
   return item;
 };
+
+/**
+ * Generate random item from predefined list (DRY)
+ */
+const pickFromList = <T>(items: readonly T[]) => (): T => pickRandom(items);
 
 /**
  * Create a factory for generating test data
@@ -123,10 +131,10 @@ export const DataGenerators = {
    * Generate a random user name
    */
   username(): string {
-    const adjectives = ['quick', 'lazy', 'sleepy', 'noisy', 'hungry', 'angry'];
-    const nouns = ['fox', 'dog', 'cat', 'bear', 'lion', 'tiger'];
-    const adj = pickRandom(adjectives);
-    const noun = pickRandom(nouns);
+    const adjectives = ['quick', 'lazy', 'sleepy', 'noisy', 'hungry', 'angry'] as const;
+    const nouns = ['fox', 'dog', 'cat', 'bear', 'lion', 'tiger'] as const;
+    const adj = pickFromList(adjectives)();
+    const noun = pickFromList(nouns)();
     const randomNumber = this.number(1, 999);
     return `${adj}_${noun}_${randomNumber}`;
   },
@@ -135,10 +143,10 @@ export const DataGenerators = {
    * Generate a random URL
    */
   url(): string {
-    const protocols = ['http', 'https'];
-    const domains = ['example.com', 'test.com', 'demo.com', 'sample.io'];
-    const protocol = pickRandom(protocols);
-    const domain = pickRandom(domains);
+    const protocols = ['http', 'https'] as const;
+    const domains = ['example.com', 'test.com', 'demo.com', 'sample.io'] as const;
+    const protocol = pickFromList(protocols)();
+    const domain = pickFromList(domains)();
     const path = this.string(8);
     return `${protocol}://${domain}/${path}`;
   },
@@ -180,8 +188,8 @@ export const DataGenerators = {
       'Frank',
       'Grace',
       'Henry',
-    ];
-    return pickRandom(names);
+    ] as const;
+    return pickFromList(names)();
   },
 
   /**
@@ -199,8 +207,8 @@ export const DataGenerators = {
       'Davis',
       'Rodriguez',
       'Martinez',
-    ];
-    return pickRandom(names);
+    ] as const;
+    return pickFromList(names)();
   },
 
   /**
@@ -214,10 +222,10 @@ export const DataGenerators = {
    * Generate a company name
    */
   companyName(): string {
-    const prefixes = ['Tech', 'Data', 'Cloud', 'Digital', 'Smart', 'Next'];
-    const suffixes = ['Systems', 'Solutions', 'Services', 'Labs', 'Hub', 'AI'];
-    const prefix = pickRandom(prefixes);
-    const suffix = pickRandom(suffixes);
+    const prefixes = ['Tech', 'Data', 'Cloud', 'Digital', 'Smart', 'Next'] as const;
+    const suffixes = ['Systems', 'Solutions', 'Services', 'Labs', 'Hub', 'AI'] as const;
+    const prefix = pickFromList(prefixes)();
+    const suffix = pickFromList(suffixes)();
     return `${prefix}${suffix}`;
   },
 
@@ -241,16 +249,25 @@ export const DataGenerators = {
       'Philadelphia',
       'San Antonio',
       'San Diego',
-    ];
-    return pickRandom(cities);
+    ] as const;
+    return pickFromList(cities)();
   },
 
   /**
    * Generate a country
    */
   country(): string {
-    const countries = ['USA', 'Canada', 'UK', 'Germany', 'France', 'Japan', 'Australia', 'Brazil'];
-    return pickRandom(countries);
+    const countries = [
+      'USA',
+      'Canada',
+      'UK',
+      'Germany',
+      'France',
+      'Japan',
+      'Australia',
+      'Brazil',
+    ] as const;
+    return pickFromList(countries)();
   },
 
   /**
@@ -279,8 +296,8 @@ export const DataGenerators = {
    * Generate a slug
    */
   slug(): string {
-    const words = ['test', 'data', 'sample', 'example', 'demo'];
-    const word = pickRandom(words);
+    const words = ['test', 'data', 'sample', 'example', 'demo'] as const;
+    const word = pickFromList(words)();
     return `${word}-${this.number(1, 999)}`;
   },
 
@@ -288,8 +305,8 @@ export const DataGenerators = {
    * Generate a locale (e.g., en-US)
    */
   locale(): string {
-    const locales = ['en-US', 'en-GB', 'fr-FR', 'de-DE', 'es-ES', 'ja-JP', 'zh-CN'];
-    return pickRandom(locales);
+    const locales = ['en-US', 'en-GB', 'fr-FR', 'de-DE', 'es-ES', 'ja-JP', 'zh-CN'] as const;
+    return pickFromList(locales)();
   },
 
   /**
@@ -320,8 +337,8 @@ export const DataGenerators = {
   /**
    * Generate enum value from array
    */
-  enum<T>(values: T[]): T {
-    return pickRandom(values);
+  enum<T>(values: readonly T[]): T {
+    return pickFromList(values)();
   },
 
   /**
@@ -372,7 +389,7 @@ export const DataGenerators = {
         () => this.boolean(),
         () => null,
       ] as const;
-      const typeFunction = pickRandom(typeFns);
+      const typeFunction = pickFromList(typeFns)();
       return typeFunction() as T;
     }
 
