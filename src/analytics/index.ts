@@ -149,7 +149,10 @@ export class TestAnalytics {
     if (!this.historicalData.has(key)) {
       this.historicalData.set(key, []);
     }
-    this.historicalData.get(key)!.push(metrics);
+    const data = this.historicalData.get(key);
+    if (data) {
+      data.push(metrics);
+    }
   }
 
   /**
@@ -157,6 +160,60 @@ export class TestAnalytics {
    */
   recordMultipleMetrics(metrics: TestMetrics[]): void {
     metrics.forEach((metric) => this.recordMetrics(metric));
+  }
+
+  /**
+   * Analyze performance metrics
+   */
+  private analyzePerformance(): TestAnalyticsResult['performance'] {
+    const durations = this.metrics.map((m) => m.duration);
+    const sortedDurations = [...durations].sort((a, b) => a - b);
+
+    return {
+      averageDuration: durations.reduce((sum, d) => sum + d, 0) / durations.length,
+      medianDuration: sortedDurations[Math.floor(sortedDurations.length / 2)],
+      p95Duration: calculatePercentile(sortedDurations, 95),
+      slowestTests: this.metrics
+        .sort((a, b) => b.duration - a.duration)
+        .slice(0, 10)
+        .map((m) => ({ name: `${m.suite}:${m.file}:${m.name}`, duration: m.duration })),
+      fastestTests: this.metrics
+        .filter((m) => m.passed)
+        .sort((a, b) => a.duration - b.duration)
+        .slice(0, 10)
+        .map((m) => ({ name: `${m.suite}:${m.file}:${m.name}`, duration: m.duration })),
+    };
+  }
+
+  /**
+   * Analyze reliability metrics
+   */
+  private analyzeReliability(
+    passedTests: TestMetrics[],
+    failedTests: TestMetrics[]
+  ): TestAnalyticsResult['reliability'] {
+    const passRate = passedTests.length / this.metrics.length;
+    const failureRate = failedTests.length / this.metrics.length;
+
+    const testFailureCounts = new Map<string, number>();
+    failedTests.forEach((test) => {
+      const key = `${test.suite}:${test.file}:${test.name}`;
+      testFailureCounts.set(key, (testFailureCounts.get(key) ?? 0) + 1);
+    });
+
+    return {
+      passRate,
+      failureRate,
+      flakyTests: this.analyzeFlakiness(),
+      mostFailingTests: Array.from(testFailureCounts.entries())
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 10)
+        .map(([name, count]) => ({
+          name,
+          failureCount: count,
+          failureRate: count / this.metrics.length,
+        })),
+    };
   }
 
   /**
@@ -171,51 +228,16 @@ export class TestAnalytics {
     const failedTests = this.metrics.filter((m) => !m.passed);
 
     // Performance analysis
-    const durations = this.metrics.map((m) => m.duration);
-    const sortedDurations = [...durations].sort((a, b) => a - b);
-
-    const performance = {
-      averageDuration: durations.reduce((sum, d) => sum + d, 0) / durations.length,
-      medianDuration: sortedDurations[Math.floor(sortedDurations.length / 2)],
-      p95Duration: calculatePercentile(sortedDurations, 95),
-      slowestTests: this.metrics
-        .sort((a, b) => b.duration - a.duration)
-        .slice(0, 10)
-        .map((m) => ({ name: `${m.suite}:${m.file}:${m.name}`, duration: m.duration })),
-      fastestTests: this.metrics
-        .filter((m) => m.passed)
-        .sort((a, b) => a.duration - b.duration)
-        .slice(0, 10)
-        .map((m) => ({ name: `${m.suite}:${m.file}:${m.name}`, duration: m.duration })),
-    };
+    const performance = this.analyzePerformance();
 
     // Reliability analysis
-    const passRate = passedTests.length / this.metrics.length;
-    const failureRate = failedTests.length / this.metrics.length;
-
-    const testFailureCounts = new Map<string, number>();
-    failedTests.forEach((test) => {
-      const key = `${test.suite}:${test.file}:${test.name}`;
-      testFailureCounts.set(key, (testFailureCounts.get(key) || 0) + 1);
-    });
-
-    const reliability = {
-      passRate,
-      failureRate,
-      flakyTests: this.analyzeFlakiness(),
-      mostFailingTests: Array.from(testFailureCounts.entries())
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 10)
-        .map(([name, count]) => ({
-          name,
-          failureCount: count,
-          failureRate: count / this.metrics.length,
-        })),
-    };
+    const reliability = this.analyzeReliability(passedTests, failedTests);
 
     // Trends (simplified - would use historical data in real implementation)
     const trends = {
-      passRateTrend: [{ date: new Date().toISOString().split('T')[0], passRate }],
+      passRateTrend: [
+        { date: new Date().toISOString().split('T')[0], passRate: reliability.passRate },
+      ],
       durationTrend: [
         {
           date: new Date().toISOString().split('T')[0],
@@ -229,13 +251,17 @@ export class TestAnalytics {
 
     // Health score calculation
     const healthScore = calculateHealthScore(
-      passRate,
+      reliability.passRate,
       performance.p95Duration,
       reliability.flakyTests.length
     );
 
     // Generate recommendations
-    const recommendations = this.generateRecommendations(performance, reliability, passRate);
+    const recommendations = this.generateRecommendations(
+      performance,
+      reliability,
+      reliability.passRate
+    );
 
     return {
       healthScore,
@@ -340,8 +366,8 @@ export class TestAnalytics {
       flakinessAnalysis: this.analyzeFlakiness().map((f) => ({
         testId: f.name,
         flakinessScore: f.flakinessScore,
-        runsAnalyzed: this.historicalData.get(f.name)?.length || 0,
-        pattern: this.historicalData.get(f.name)?.map((m) => (m.passed ? 'pass' : 'fail')) || [],
+        runsAnalyzed: this.historicalData.get(f.name)?.length ?? 0,
+        pattern: this.historicalData.get(f.name)?.map((m) => (m.passed ? 'pass' : 'fail')) ?? [],
         failureRate: f.failureRate,
         confidence: 0.8, // Simplified
         recommendations: [
@@ -369,7 +395,7 @@ export class TestAnalytics {
    * Get metrics for a specific test
    */
   getTestMetrics(testId: string): TestMetrics[] {
-    return this.historicalData.get(testId) || [];
+    return this.historicalData.get(testId) ?? [];
   }
 
   /**
@@ -470,24 +496,9 @@ export class TestAnalytics {
 }
 
 /**
- * Generate analytics report
+ * Add performance metrics to the report
  */
-export function generateAnalyticsReport(result: TestAnalyticsResult): string {
-  const lines: string[] = [];
-
-  lines.push('# Test Analytics Report');
-  lines.push('');
-  lines.push(`## Health Score: ${result.healthScore.toFixed(1)}/100`);
-  lines.push('');
-
-  lines.push('## Summary');
-  lines.push(`- **Total Tests**: ${result.totalTests}`);
-  lines.push(`- **Passed**: ${result.counts.passed}`);
-  lines.push(`- **Failed**: ${result.counts.failed}`);
-  lines.push(`- **Pass Rate**: ${(result.reliability.passRate * 100).toFixed(1)}%`);
-  lines.push(`- **Analysis Date**: ${result.timestamp}`);
-  lines.push('');
-
+function appendPerformanceMetrics(lines: string[], result: TestAnalyticsResult): void {
   lines.push('## Performance Metrics');
   lines.push(`- **Average Duration**: ${result.performance.averageDuration.toFixed(0)}ms`);
   lines.push(`- **Median Duration**: ${result.performance.medianDuration?.toFixed(0) ?? 'N/A'}ms`);
@@ -501,7 +512,12 @@ export function generateAnalyticsReport(result: TestAnalyticsResult): string {
     });
     lines.push('');
   }
+}
 
+/**
+ * Add reliability metrics to the report
+ */
+function appendReliabilityMetrics(lines: string[], result: TestAnalyticsResult): void {
   lines.push('## Reliability Metrics');
   lines.push(`- **Failure Rate**: ${(result.reliability.failureRate * 100).toFixed(1)}%`);
   lines.push(`- **Flaky Tests**: ${result.reliability.flakyTests.length}`);
@@ -524,42 +540,73 @@ export function generateAnalyticsReport(result: TestAnalyticsResult): string {
     });
     lines.push('');
   }
+}
 
-  if (result.recommendations.length > 0) {
-    lines.push('## Recommendations');
-    lines.push('');
-
-    const highPriority = result.recommendations.filter((r) => r.priority === 'high');
-    const mediumPriority = result.recommendations.filter((r) => r.priority === 'medium');
-    const lowPriority = result.recommendations.filter((r) => r.priority === 'low');
-
-    if (highPriority.length > 0) {
-      lines.push('### 🔴 High Priority');
-      highPriority.forEach((rec) => {
-        lines.push(`- **${rec.title}**: ${rec.description}`);
-        lines.push(`  *Suggestion*: ${rec.suggestion}`);
-      });
-      lines.push('');
-    }
-
-    if (mediumPriority.length > 0) {
-      lines.push('### 🟡 Medium Priority');
-      mediumPriority.forEach((rec) => {
-        lines.push(`- **${rec.title}**: ${rec.description}`);
-        lines.push(`  *Suggestion*: ${rec.suggestion}`);
-      });
-      lines.push('');
-    }
-
-    if (lowPriority.length > 0) {
-      lines.push('### 🟢 Low Priority');
-      lowPriority.forEach((rec) => {
-        lines.push(`- **${rec.title}**: ${rec.description}`);
-        lines.push(`  *Suggestion*: ${rec.suggestion}`);
-      });
-      lines.push('');
-    }
+/**
+ * Add recommendations to the report
+ */
+function appendRecommendations(lines: string[], result: TestAnalyticsResult): void {
+  if (result.recommendations.length === 0) {
+    return;
   }
+
+  lines.push('## Recommendations');
+  lines.push('');
+
+  const highPriority = result.recommendations.filter((r) => r.priority === 'high');
+  const mediumPriority = result.recommendations.filter((r) => r.priority === 'medium');
+  const lowPriority = result.recommendations.filter((r) => r.priority === 'low');
+
+  if (highPriority.length > 0) {
+    lines.push('### 🔴 High Priority');
+    highPriority.forEach((rec) => {
+      lines.push(`- **${rec.title}**: ${rec.description}`);
+      lines.push(`  *Suggestion*: ${rec.suggestion}`);
+    });
+    lines.push('');
+  }
+
+  if (mediumPriority.length > 0) {
+    lines.push('### 🟡 Medium Priority');
+    mediumPriority.forEach((rec) => {
+      lines.push(`- **${rec.title}**: ${rec.description}`);
+      lines.push(`  *Suggestion*: ${rec.suggestion}`);
+    });
+    lines.push('');
+  }
+
+  if (lowPriority.length > 0) {
+    lines.push('### 🟢 Low Priority');
+    lowPriority.forEach((rec) => {
+      lines.push(`- **${rec.title}**: ${rec.description}`);
+      lines.push(`  *Suggestion*: ${rec.suggestion}`);
+    });
+    lines.push('');
+  }
+}
+
+/**
+ * Generate analytics report
+ */
+export function generateAnalyticsReport(result: TestAnalyticsResult): string {
+  const lines: string[] = [];
+
+  lines.push('# Test Analytics Report');
+  lines.push('');
+  lines.push(`## Health Score: ${result.healthScore.toFixed(1)}/100`);
+  lines.push('');
+
+  lines.push('## Summary');
+  lines.push(`- **Total Tests**: ${result.totalTests}`);
+  lines.push(`- **Passed**: ${result.counts.passed}`);
+  lines.push(`- **Failed**: ${result.counts.failed}`);
+  lines.push(`- **Pass Rate**: ${(result.reliability.passRate * 100).toFixed(1)}%`);
+  lines.push(`- **Analysis Date**: ${result.timestamp}`);
+  lines.push('');
+
+  appendPerformanceMetrics(lines, result);
+  appendReliabilityMetrics(lines, result);
+  appendRecommendations(lines, result);
 
   return lines.join('\n');
 }
@@ -567,13 +614,20 @@ export function generateAnalyticsReport(result: TestAnalyticsResult): string {
 /**
  * Convenience function for tracking test metrics
  */
-export function trackTestMetrics(result: any): TestMetrics {
+export function trackTestMetrics(result: unknown): TestMetrics {
+  const typedResult = result as {
+    suite: string;
+    file: string;
+    name: string;
+    duration: number;
+    passed: boolean;
+  };
   return {
-    suite: result.suite,
-    file: result.file,
-    name: result.name,
-    duration: result.duration,
-    passed: result.passed,
+    suite: typedResult.suite,
+    file: typedResult.file,
+    name: typedResult.name,
+    duration: typedResult.duration,
+    passed: typedResult.passed,
     timestamp: new Date().toISOString(),
     environment: {
       nodeVersion: process.version,
@@ -610,7 +664,7 @@ function calculatePercentile(sortedArray: number[], percentile: number): number 
   }
 
   const index = Math.ceil((percentile / 100) * sortedArray.length) - 1;
-  return sortedArray[Math.max(0, Math.min(index, sortedArray.length - 1))] || 0;
+  return sortedArray[Math.max(0, Math.min(index, sortedArray.length - 1))] ?? 0;
 }
 
 function calculateHealthScore(passRate: number, p95Duration: number, flakyCount: number): number {

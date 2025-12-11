@@ -3,8 +3,6 @@
  * Inspired by Microsoft's accessibility focus and Google's a11y testing frameworks
  */
 
-import { assertUnreachable } from '../utils/assert-never';
-
 export type AccessibilityStandard = 'WCAG2A' | 'WCAG2AA' | 'WCAG2AAA' | 'Section508';
 
 export type AccessibilityRule =
@@ -100,12 +98,52 @@ export type PageLike = {
 };
 
 /**
+ * Extract document and URL from page
+ */
+function extractDocumentFromPage(page: PageLike | Document): { document: Document; url?: string } {
+  if ('evaluate' in page) {
+    // It's a PageLike object (e.g., Playwright page)
+    // For now, create a mock document for testing
+    const document = {
+      documentElement: { getAttribute: () => 'en' },
+      querySelectorAll: () => [],
+      querySelector: () => null,
+    } as unknown as Document;
+    const url = 'url' in page ? page.url() : undefined;
+    return url !== undefined ? { document, url } : { document };
+  } else {
+    // It's a Document object
+    return { document: page };
+  }
+}
+
+/**
+ * Calculate accessibility score based on violations
+ */
+function calculateAccessibilityScore(
+  violations: AccessibilityAuditResult['violations'],
+  rulesCount: number
+): number {
+  const errorWeight = 10;
+  const warningWeight = 3;
+  const infoWeight = 1;
+
+  const maxPossibleScore = rulesCount * 10;
+  const penaltyScore =
+    violations.errors.length * errorWeight +
+    violations.warnings.length * warningWeight +
+    violations.info.length * infoWeight;
+
+  return Math.max(0, Math.min(100, ((maxPossibleScore - penaltyScore) / maxPossibleScore) * 100));
+}
+
+/**
  * Run comprehensive accessibility audit
  */
-export async function auditAccessibility(
+export function auditAccessibility(
   page: PageLike | Document,
   options: AccessibilityAuditOptions = {}
-): Promise<AccessibilityAuditResult> {
+): AccessibilityAuditResult {
   const { standards = ['WCAG2AA'], rules, skipHidden = true } = options;
 
   const violations: AccessibilityAuditResult['violations'] = {
@@ -115,29 +153,13 @@ export async function auditAccessibility(
   };
 
   // Get page content
-  let document: Document;
-  let url: string | undefined;
-
-  if ('evaluate' in page) {
-    // It's a PageLike object (e.g., Playwright page)
-    // For now, create a mock document for testing
-    document = {
-      documentElement: { getAttribute: () => 'en' },
-      querySelectorAll: () => [],
-      querySelector: () => null,
-    } as unknown as Document;
-    url = 'url' in page ? page.url() : undefined;
-  } else {
-    // It's a Document object
-    document = page;
-    url = undefined;
-  }
+  const { document, url } = extractDocumentFromPage(page);
 
   // Run all accessibility checks
-  const allRules = rules || getDefaultRulesForStandards(standards);
+  const allRules = rules ?? getDefaultRulesForStandards(standards);
 
   for (const rule of allRules) {
-    const ruleViolations = await runAccessibilityRule(document, rule, { skipHidden });
+    const ruleViolations = runAccessibilityRule(document, rule, { skipHidden });
     violations.errors.push(...ruleViolations.errors);
     violations.warnings.push(...ruleViolations.warnings);
     violations.info.push(...ruleViolations.info);
@@ -146,20 +168,7 @@ export async function auditAccessibility(
   // Calculate score
   const totalViolations =
     violations.errors.length + violations.warnings.length + violations.info.length;
-  const errorWeight = 10;
-  const warningWeight = 3;
-  const infoWeight = 1;
-
-  const maxPossibleScore = allRules.length * 10;
-  const penaltyScore =
-    violations.errors.length * errorWeight +
-    violations.warnings.length * warningWeight +
-    violations.info.length * infoWeight;
-
-  const score = Math.max(
-    0,
-    Math.min(100, ((maxPossibleScore - penaltyScore) / maxPossibleScore) * 100)
-  );
+  const score = calculateAccessibilityScore(violations, allRules.length);
 
   return {
     passed: violations.errors.length === 0,
@@ -227,102 +236,149 @@ function getDefaultRulesForStandards(standards: AccessibilityStandard[]): Access
 }
 
 /**
+ * Execute WCAG 2.0 Level A rules
+ */
+function executeWCAG2ARule(
+  document: Document,
+  rule: AccessibilityRule,
+  violations: {
+    errors: AccessibilityViolation[];
+    warnings: AccessibilityViolation[];
+    info: AccessibilityViolation[];
+  },
+  skipHidden: boolean
+): boolean {
+  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check
+  switch (rule) {
+    case 'color-contrast':
+      checkColorContrast(document, violations, skipHidden);
+      return true;
+    case 'keyboard-navigation':
+      checkKeyboardNavigation(document, violations, skipHidden);
+      return true;
+    case 'semantic-html':
+      checkSemanticHtml(document, violations, skipHidden);
+      return true;
+    case 'alt-text':
+      checkAltText(document, violations, skipHidden);
+      return true;
+    case 'heading-structure':
+      checkHeadingStructure(document, violations, skipHidden);
+      return true;
+    case 'form-labels':
+      checkFormLabels(document, violations, skipHidden);
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Execute WCAG 2.0 Level AA rules
+ */
+function executeWCAG2AARules(
+  document: Document,
+  rule: AccessibilityRule,
+  violations: {
+    errors: AccessibilityViolation[];
+    warnings: AccessibilityViolation[];
+    info: AccessibilityViolation[];
+  },
+  skipHidden: boolean
+): boolean {
+  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check
+  switch (rule) {
+    case 'focus-management':
+      checkFocusManagement(document, violations, skipHidden);
+      return true;
+    case 'landmarks':
+      checkLandmarks(document, violations, skipHidden);
+      return true;
+    case 'language-attribute':
+      checkLanguageAttribute(document, violations, skipHidden);
+      return true;
+    case 'input-purpose':
+      checkInputPurpose(document, violations, skipHidden);
+      return true;
+    case 'image-alt':
+      checkImageAlt(document, violations, skipHidden);
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Execute advanced accessibility rules
+ */
+function executeAdvancedRules(
+  document: Document,
+  rule: AccessibilityRule,
+  violations: {
+    errors: AccessibilityViolation[];
+    warnings: AccessibilityViolation[];
+    info: AccessibilityViolation[];
+  },
+  skipHidden: boolean
+): boolean {
+  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check
+  switch (rule) {
+    case 'link-purpose':
+      checkLinkPurpose(document, violations, skipHidden);
+      return true;
+    case 'button-purpose':
+      checkButtonPurpose(document, violations, skipHidden);
+      return true;
+    case 'table-headers':
+      checkTableHeaders(document, violations, skipHidden);
+      return true;
+    case 'error-identification':
+      checkErrorIdentification(document, violations, skipHidden);
+      return true;
+    case 'list-structure':
+      checkListStructure(document, violations, skipHidden);
+      return true;
+    case 'parsing':
+      checkParsing(document, violations, skipHidden);
+      return true;
+    case 'frame-titles':
+      checkFrameTitles(document, violations, skipHidden);
+      return true;
+    case 'name-role-value':
+      checkNameRoleValue(document, violations, skipHidden);
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
  * Run a specific accessibility rule
  */
-async function runAccessibilityRule(
+function runAccessibilityRule(
   document: Document,
   rule: AccessibilityRule,
   options: { skipHidden: boolean }
-): Promise<{
+): {
   errors: AccessibilityViolation[];
   warnings: AccessibilityViolation[];
   info: AccessibilityViolation[];
-}> {
+} {
   const violations = {
     errors: [] as AccessibilityViolation[],
     warnings: [] as AccessibilityViolation[],
     info: [] as AccessibilityViolation[],
   };
 
-  switch (rule) {
-    case 'color-contrast':
-      checkColorContrast(document, violations, options.skipHidden);
-      break;
+  // Try executing rule in each category
+  const executed =
+    executeWCAG2ARule(document, rule, violations, options.skipHidden) ||
+    executeWCAG2AARules(document, rule, violations, options.skipHidden) ||
+    executeAdvancedRules(document, rule, violations, options.skipHidden);
 
-    case 'keyboard-navigation':
-      checkKeyboardNavigation(document, violations, options.skipHidden);
-      break;
-
-    case 'semantic-html':
-      checkSemanticHtml(document, violations, options.skipHidden);
-      break;
-
-    case 'alt-text':
-      checkAltText(document, violations, options.skipHidden);
-      break;
-
-    case 'heading-structure':
-      checkHeadingStructure(document, violations, options.skipHidden);
-      break;
-
-    case 'form-labels':
-      checkFormLabels(document, violations, options.skipHidden);
-      break;
-
-    case 'focus-management':
-      checkFocusManagement(document, violations, options.skipHidden);
-      break;
-
-    case 'landmarks':
-      checkLandmarks(document, violations, options.skipHidden);
-      break;
-
-    case 'language-attribute':
-      checkLanguageAttribute(document, violations, options.skipHidden);
-      break;
-
-    case 'input-purpose':
-      checkInputPurpose(document, violations, options.skipHidden);
-      break;
-
-    case 'image-alt':
-      checkImageAlt(document, violations, options.skipHidden);
-      break;
-
-    case 'link-purpose':
-      checkLinkPurpose(document, violations, options.skipHidden);
-      break;
-
-    case 'button-purpose':
-      checkButtonPurpose(document, violations, options.skipHidden);
-      break;
-
-    case 'table-headers':
-      checkTableHeaders(document, violations, options.skipHidden);
-      break;
-
-    case 'error-identification':
-      checkErrorIdentification(document, violations, options.skipHidden);
-      break;
-
-    case 'list-structure':
-      checkListStructure(document, violations, options.skipHidden);
-      break;
-
-    case 'parsing':
-      checkParsing(document, violations, options.skipHidden);
-      break;
-
-    case 'frame-titles':
-      checkFrameTitles(document, violations, options.skipHidden);
-      break;
-
-    case 'name-role-value':
-      checkNameRoleValue(document, violations, options.skipHidden);
-      break;
-
-    default:
-      return assertUnreachable(rule);
+  if (!executed) {
+    // Rule not implemented yet - return empty violations
+    return violations;
   }
 
   return violations;
@@ -442,12 +498,18 @@ function checkSemanticHtml(
 
   // Check for skipped heading levels
   for (let index = 1; index < headingLevels.length; index++) {
-    if (headingLevels[index]! > headingLevels[index - 1]! + 1) {
+    const currentLevel = headingLevels[index];
+    const previousLevel = headingLevels[index - 1];
+    if (
+      currentLevel !== undefined &&
+      previousLevel !== undefined &&
+      currentLevel > previousLevel + 1
+    ) {
       violations.warnings.push({
         rule: 'semantic-html',
         severity: 'warning',
         description: 'Skipped heading level',
-        selector: `h${headingLevels[index]}`,
+        selector: `h${currentLevel}`,
         wcag: '1.3.1',
         suggestion: 'Use sequential heading levels (h1, h2, h3, etc.)',
       });
@@ -1034,10 +1096,10 @@ function checkNameRoleValue(
 
     // Check if element has accessible name
     const hasAccessibleName =
-      textContent ||
-      ariaLabel ||
-      ariaLabelledBy ||
-      (element as HTMLInputElement).placeholder ||
+      textContent ??
+      ariaLabel ??
+      ariaLabelledBy ??
+      (element as HTMLInputElement).placeholder ??
       element.getAttribute('title');
 
     if (!hasAccessibleName) {
@@ -1079,11 +1141,9 @@ function getElementSelector(element: Element): string {
 }
 
 /**
- * Generate accessibility report
+ * Append accessibility report summary
  */
-export function generateAccessibilityReport(result: AccessibilityAuditResult): string {
-  const lines: string[] = [];
-
+function appendAccessibilitySummary(lines: string[], result: AccessibilityAuditResult): void {
   lines.push(`# Accessibility Audit Report`);
   lines.push('');
   lines.push(`## Summary`);
@@ -1101,40 +1161,45 @@ export function generateAccessibilityReport(result: AccessibilityAuditResult): s
   }
 
   lines.push('');
+}
 
-  if (result.violations.errors.length > 0) {
-    lines.push('## Errors');
-    lines.push('');
-    result.violations.errors.forEach((violation, index) => {
-      lines.push(`### ${index + 1}. ${violation.description}`);
-      lines.push(`- **Rule**: ${violation.rule}`);
-      lines.push(`- **WCAG**: ${violation.wcag || 'N/A'}`);
-      if (violation.selector) {
-        lines.push(`- **Element**: \`${violation.selector}\``);
-      }
-      if (violation.suggestion) {
-        lines.push(`- **Suggestion**: ${violation.suggestion}`);
-      }
-      lines.push('');
-    });
+/**
+ * Append violations of a specific severity level
+ */
+function appendViolationsList(
+  lines: string[],
+  violations: AccessibilityViolation[],
+  title: string
+): void {
+  if (violations.length === 0) {
+    return;
   }
 
-  if (result.violations.warnings.length > 0) {
-    lines.push('## Warnings');
+  lines.push(`## ${title}`);
+  lines.push('');
+  violations.forEach((violation, index) => {
+    lines.push(`### ${index + 1}. ${violation.description}`);
+    lines.push(`- **Rule**: ${violation.rule}`);
+    lines.push(`- **WCAG**: ${violation.wcag ?? 'N/A'}`);
+    if (violation.selector) {
+      lines.push(`- **Element**: \`${violation.selector}\``);
+    }
+    if (violation.suggestion) {
+      lines.push(`- **Suggestion**: ${violation.suggestion}`);
+    }
     lines.push('');
-    result.violations.warnings.forEach((violation, index) => {
-      lines.push(`### ${index + 1}. ${violation.description}`);
-      lines.push(`- **Rule**: ${violation.rule}`);
-      lines.push(`- **WCAG**: ${violation.wcag || 'N/A'}`);
-      if (violation.selector) {
-        lines.push(`- **Element**: \`${violation.selector}\``);
-      }
-      if (violation.suggestion) {
-        lines.push(`- **Suggestion**: ${violation.suggestion}`);
-      }
-      lines.push('');
-    });
-  }
+  });
+}
+
+/**
+ * Generate accessibility report
+ */
+export function generateAccessibilityReport(result: AccessibilityAuditResult): string {
+  const lines: string[] = [];
+
+  appendAccessibilitySummary(lines, result);
+  appendViolationsList(lines, result.violations.errors, 'Errors');
+  appendViolationsList(lines, result.violations.warnings, 'Warnings');
 
   return lines.join('\n');
 }

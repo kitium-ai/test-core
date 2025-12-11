@@ -75,7 +75,7 @@ export type StressTestResult = {
 
 export type BenchmarkOptions = {
   /** Function to benchmark */
-  fn: () => Promise<unknown> | unknown;
+  function: () => Promise<unknown> | unknown;
   /** Number of iterations */
   iterations?: number;
   /** Warmup iterations */
@@ -114,7 +114,7 @@ function parseDuration(duration: string): number {
     throw new Error(`Invalid duration format: ${duration}. Use format like '5m', '30s', '1h'`);
   }
 
-  const value = parseInt(match[1]!, 10);
+  const value = parseInt(match[1] ?? '0', 10);
   const unit = match[2];
   if (!unit) {
     throw new Error('Duration unit is required');
@@ -164,8 +164,8 @@ function createResponseTimeDistribution(
     return [];
   }
 
-  const min = sorted[0]!;
-  const max = sorted[sorted.length - 1]!;
+  const min = sorted[0] ?? 0;
+  const max = sorted[sorted.length - 1] ?? 0;
 
   // Create 10 buckets
   const bucketSize = (max - min) / 10;
@@ -200,61 +200,51 @@ export async function loadTest(options: LoadTestOptions): Promise<LoadTestResult
   const endTime = startTime + durationMs;
 
   const results: Array<{ success: boolean; responseTime: number; error?: Error }> = [];
-  const activePromises = new Set<Promise<void>>();
 
   // Calculate target RPS distribution
   const totalTargetRequests = targetRps ? Math.floor(targetRps * (durationMs / 1000)) : Infinity;
 
+  const totalRequests = await executeLoadTest({
+    scenario,
+    concurrency,
+    rampUpMs,
+    startTime,
+    endTime,
+    totalTargetRequests,
+    results,
+  });
+
+  return calculateLoadTestResults(results, totalRequests, startTime);
+}
+
+async function executeLoadTest(parameters: {
+  scenario: LoadTestScenario;
+  concurrency: number;
+  rampUpMs: number;
+  startTime: number;
+  endTime: number;
+  totalTargetRequests: number;
+  results: Array<{ success: boolean; responseTime: number; error?: Error }>;
+}): Promise<number> {
+  const { scenario, concurrency, rampUpMs, startTime, endTime, totalTargetRequests, results } =
+    parameters;
   let totalRequests = 0;
+  const activePromises = new Set<Promise<void>>();
 
-  // Ramp-up phase
-
-  async function executeScenario(): Promise<void> {
-    const scenarioStart = Date.now();
-
-    try {
-      await scenario();
-      const responseTime = Date.now() - scenarioStart;
-      results.push({ success: true, responseTime });
-    } catch (error) {
-      const responseTime = Date.now() - scenarioStart;
-      results.push({
-        success: false,
-        responseTime,
-        error: error instanceof Error ? error : new Error(String(error)),
-      });
-    }
-  }
-
-  // Main test execution
-  const testPromise = new Promise<void>((resolve) => {
+  await new Promise<void>((resolve) => {
     const interval = setInterval(() => {
       const now = Date.now();
 
-      if (now >= endTime) {
+      if (now >= endTime || totalRequests >= totalTargetRequests) {
         clearInterval(interval);
         resolve();
         return;
       }
 
-      // Check if we've hit the target number of requests
-      if (totalRequests >= totalTargetRequests) {
-        clearInterval(interval);
-        resolve();
-        return;
-      }
+      const currentConcurrency = calculateCurrentConcurrency(concurrency, rampUpMs, startTime, now);
 
-      // Calculate current concurrency based on ramp-up
-      let currentConcurrency = concurrency;
-      if (rampUpMs > 0 && now - startTime < rampUpMs) {
-        const rampProgress = (now - startTime) / rampUpMs;
-        currentConcurrency = Math.floor(concurrency * rampProgress);
-        currentConcurrency = Math.max(1, currentConcurrency);
-      }
-
-      // Limit active promises to current concurrency
       if (activePromises.size < currentConcurrency) {
-        const promise = executeScenario();
+        const promise = executeScenario(scenario, results);
         activePromises.add(promise);
 
         void promise.finally(() => {
@@ -263,15 +253,53 @@ export async function loadTest(options: LoadTestOptions): Promise<LoadTestResult
 
         totalRequests++;
       }
-    }, 10); // Check every 10ms
+    }, 10);
   });
 
-  await testPromise;
-
-  // Wait for all remaining promises to complete
   await Promise.allSettled(activePromises);
+  return totalRequests;
+}
 
-  // Calculate results
+function calculateCurrentConcurrency(
+  targetConcurrency: number,
+  rampUpMs: number,
+  startTime: number,
+  now: number
+): number {
+  let currentConcurrency = targetConcurrency;
+  if (rampUpMs > 0 && now - startTime < rampUpMs) {
+    const rampProgress = (now - startTime) / rampUpMs;
+    currentConcurrency = Math.floor(targetConcurrency * rampProgress);
+    currentConcurrency = Math.max(1, currentConcurrency);
+  }
+  return currentConcurrency;
+}
+
+async function executeScenario(
+  scenario: LoadTestScenario,
+  results: Array<{ success: boolean; responseTime: number; error?: Error }>
+): Promise<void> {
+  const scenarioStart = Date.now();
+
+  try {
+    await scenario();
+    const responseTime = Date.now() - scenarioStart;
+    results.push({ success: true, responseTime });
+  } catch (error) {
+    const responseTime = Date.now() - scenarioStart;
+    results.push({
+      success: false,
+      responseTime,
+      error: error instanceof Error ? error : new Error(String(error)),
+    });
+  }
+}
+
+function calculateLoadTestResults(
+  results: Array<{ success: boolean; responseTime: number; error?: Error }>,
+  totalRequests: number,
+  startTime: number
+): LoadTestResult {
   const successfulRequests = results.filter((r) => r.success).length;
   const failedRequests = results.filter((r) => !r.success).length;
   const responseTimes = results.map((r) => r.responseTime);
@@ -333,8 +361,8 @@ export async function stressTest(options: StressTestOptions): Promise<StressTest
 
     if (passed) {
       maxSustainableConcurrency = concurrency;
-    } else if (!breakingPoint) {
-      breakingPoint = concurrency;
+    } else {
+      breakingPoint ??= concurrency;
     }
   }
 
@@ -352,13 +380,20 @@ export async function benchmark(
   _name: string,
   options: BenchmarkOptions
 ): Promise<BenchmarkResult> {
-  const { fn, iterations = 100, warmupIterations = 10, timeout = 30000 } = options;
+  const {
+    function: targetFunction,
+    iterations = 100,
+    warmupIterations = 10,
+    timeout = 30000,
+  } = options;
 
   // Warmup phase
   for (let index = 0; index < warmupIterations; index++) {
     await Promise.race([
-      fn(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Warmup timeout')), timeout)),
+      targetFunction(),
+      new Promise((_resolve, reject) =>
+        setTimeout(() => reject(new Error('Warmup timeout')), timeout)
+      ),
     ]);
   }
 
@@ -371,8 +406,8 @@ export async function benchmark(
 
     try {
       await Promise.race([
-        fn(),
-        new Promise((_, reject) =>
+        targetFunction(),
+        new Promise((_resolve, reject) =>
           setTimeout(() => reject(new Error('Iteration timeout')), timeout)
         ),
       ]);
@@ -391,6 +426,10 @@ export async function benchmark(
     throw new Error('No successful iterations completed');
   }
 
+  return calculateBenchmarkStats(times, totalTime);
+}
+
+function calculateBenchmarkStats(times: number[], totalTime: number): BenchmarkResult {
   const sortedTimes = [...times].sort((a, b) => a - b);
 
   const averageTime = times.reduce((sum, time) => sum + time, 0) / times.length;
@@ -422,9 +461,9 @@ export async function benchmark(
 /**
  * Convenience function for quick benchmarking
  */
-export async function benchmarkFn<T>(
+export async function benchmarkFunction<T>(
   function_: () => T | Promise<T>,
   options?: Partial<BenchmarkOptions>
 ): Promise<BenchmarkResult> {
-  return benchmark('anonymous', { fn: function_, ...options });
+  return benchmark('anonymous', { function: function_, ...options });
 }

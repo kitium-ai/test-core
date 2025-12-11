@@ -146,10 +146,7 @@ export type AITestOptimization = {
 /**
  * Generate tests using AI
  */
-export async function generateTestsWithAI(
-  sourceCode: string,
-  options: AITestOptions
-): Promise<AIGeneratedTest[]> {
+export function generateTestsWithAI(sourceCode: string, options: AITestOptions): AIGeneratedTest[] {
   const {
     framework = 'jest',
     language = 'typescript',
@@ -166,7 +163,7 @@ export async function generateTestsWithAI(
 
     // Generate tests for each test type
     for (const testType of testTypes) {
-      const tests = await generateTestsForType(
+      const tests = generateTestsForType(
         codeAnalysis,
         testType,
         framework,
@@ -189,15 +186,14 @@ export async function generateTestsWithAI(
 /**
  * Get AI-powered test suggestions
  */
-export async function getAITestSuggestions(
+export function getAITestSuggestions(
   sourceCode: string,
   existingTests?: string,
   options: Partial<AITestOptions> = {}
 ): Promise<AITestSuggestion[]> {
-  const suggestions: AITestSuggestion[] = [];
-
   try {
-    const codeAnalysis = analyzeCodeStructure(sourceCode, options.language || 'typescript');
+    const suggestions: AITestSuggestion[] = [];
+    const codeAnalysis = analyzeCodeStructure(sourceCode, options.language ?? 'typescript');
 
     // Analyze test coverage gaps
     const coverageGaps = identifyCoverageGaps(codeAnalysis, existingTests);
@@ -212,10 +208,12 @@ export async function getAITestSuggestions(
     suggestions.push(...edgeCases);
 
     // Sort by priority
-    return suggestions.sort((a, b) => b.priority - a.priority);
+    return Promise.resolve(suggestions.sort((a, b) => b.priority - a.priority));
   } catch (error) {
-    throw new Error(
-      `AI test suggestions failed: ${error instanceof Error ? error.message : String(error)}`
+    return Promise.reject(
+      new Error(
+        `AI test suggestions failed: ${error instanceof Error ? error.message : String(error)}`
+      )
     );
   }
 }
@@ -229,9 +227,9 @@ export async function analyzeTestsWithAI(
   options: Partial<AITestOptions> = {}
 ): Promise<AITestAnalysis> {
   try {
-    const codeAnalysis = analyzeCodeStructure(sourceCode, options.language || 'typescript');
+    const codeAnalysis = analyzeCodeStructure(sourceCode, options.language ?? 'typescript');
     const testAnalysis = testCode
-      ? analyzeCodeStructure(testCode, options.language || 'typescript')
+      ? analyzeCodeStructure(testCode, options.language ?? 'typescript')
       : null;
 
     // Calculate quality score
@@ -250,7 +248,7 @@ export async function analyzeTestsWithAI(
     const recommendations = generateRecommendations(codeAnalysis, testAnalysis, issues);
 
     // Generate additional tests
-    const generatedTests = await generateTestsWithAI(sourceCode, {
+    const generatedTests = generateTestsWithAI(sourceCode, {
       ...options,
       mode: 'generate',
       testTypes: [{ name: 'unit', priority: 1 }],
@@ -275,11 +273,11 @@ export async function analyzeTestsWithAI(
 /**
  * Optimize existing tests using AI
  */
-export async function optimizeTestsWithAI(
+export function optimizeTestsWithAI(
   testCode: string,
-  performanceData?: any,
+  performanceData?: unknown,
   options: Partial<AITestOptions> = {}
-): Promise<AITestOptimization> {
+): AITestOptimization {
   const optimization: AITestOptimization = {
     suggestions: [],
     flakyTests: [],
@@ -287,7 +285,7 @@ export async function optimizeTestsWithAI(
   };
 
   try {
-    const testAnalysis = analyzeCodeStructure(testCode, options.language || 'typescript');
+    const testAnalysis = analyzeCodeStructure(testCode, options.language ?? 'typescript');
 
     // Identify parallelization opportunities
     const parallelization = identifyParallelizationOpportunities(testAnalysis);
@@ -316,10 +314,10 @@ export async function optimizeTestsWithAI(
 /**
  * Generate test scenarios from user stories or requirements
  */
-export async function generateScenariosFromRequirements(
+export function generateScenariosFromRequirements(
   requirements: string,
   options: Partial<AITestOptions> = {}
-): Promise<Array<{ scenario: string; testCases: string[]; priority: number }>> {
+): Array<{ scenario: string; testCases: string[]; priority: number }> {
   try {
     // Parse requirements and extract scenarios
     const scenarios = parseRequirements(requirements);
@@ -342,11 +340,11 @@ export async function generateScenariosFromRequirements(
 /**
  * Predict test failures using AI
  */
-export async function predictTestFailures(
+export function predictTestFailures(
   sourceCode: string,
   recentChanges?: string,
-  historicalData?: any
-): Promise<Array<{ location: string; risk: number; reason: string; prevention: string }>> {
+  historicalData?: unknown
+): Array<{ location: string; risk: number; reason: string; prevention: string }> {
   const predictions: Array<{ location: string; risk: number; reason: string; prevention: string }> =
     [];
 
@@ -378,7 +376,7 @@ export async function predictTestFailures(
 /**
  * Utility functions for AI-powered testing
  */
-function analyzeCodeStructure(code: string, language: string): any {
+function analyzeCodeStructure(code: string, language: string): unknown {
   // Mock code analysis - in real implementation, use AST parsing
   const lines = code.split('\n');
   const functions = lines.filter(
@@ -429,14 +427,14 @@ function extractDependencies(code: string, language: string): string[] {
   return dependencies;
 }
 
-async function generateTestsForType(
-  codeAnalysis: any,
+function generateTestsForType(
+  codeAnalysis: unknown,
   testType: TestType,
   framework: string,
   language: string,
   complexity: string,
-  _coverage: any
-): Promise<AIGeneratedTest[]> {
+  _coverage: unknown
+): AIGeneratedTest[] {
   const tests: AIGeneratedTest[] = [];
 
   // Mock test generation based on analysis
@@ -477,7 +475,7 @@ function getComplexityScore(level: string): number {
   return 3;
 }
 
-function generateJestTests(_codeAnalysis: any, testType: TestType, complexity: string): string {
+function generateJestTests(_codeAnalysis: unknown, testType: TestType, complexity: string): string {
   const lines: string[] = [];
 
   lines.push("import { describe, it, expect } from '@jest/globals';");
@@ -508,7 +506,11 @@ function generateJestTests(_codeAnalysis: any, testType: TestType, complexity: s
   return lines.join('\n');
 }
 
-function generateVitestTests(_codeAnalysis: any, testType: TestType, _complexity: string): string {
+function generateVitestTests(
+  _codeAnalysis: unknown,
+  testType: TestType,
+  _complexity: string
+): string {
   const lines: string[] = [];
 
   lines.push("import { describe, it, expect } from 'vitest';");
@@ -523,22 +525,27 @@ function generateVitestTests(_codeAnalysis: any, testType: TestType, _complexity
   return lines.join('\n');
 }
 
-function identifyCoverageGaps(codeAnalysis: any, existingTests?: string): AITestSuggestion[] {
+function identifyCoverageGaps(codeAnalysis: unknown, existingTests?: string): AITestSuggestion[] {
   const suggestions: AITestSuggestion[] = [];
+  const typedAnalysis = codeAnalysis as { functions?: number; classes?: number };
 
   // Mock coverage gap analysis
-  if (codeAnalysis.functions > 0 && !existingTests?.includes('describe')) {
+  if (
+    typedAnalysis.functions &&
+    typedAnalysis.functions > 0 &&
+    !existingTests?.includes('describe')
+  ) {
     suggestions.push({
       type: 'missing-test',
       title: 'Missing unit tests for functions',
-      description: `Found ${codeAnalysis.functions} functions without corresponding unit tests`,
+      description: `Found ${typedAnalysis.functions} functions without corresponding unit tests`,
       priority: 0.8,
       rationale: 'Unit tests ensure function correctness and prevent regressions',
       impact: { coverageIncrease: 30 },
     });
   }
 
-  if (codeAnalysis.classes > 0) {
+  if (typedAnalysis.classes && typedAnalysis.classes > 0) {
     suggestions.push({
       type: 'missing-test',
       title: 'Missing class integration tests',
@@ -552,7 +559,10 @@ function identifyCoverageGaps(codeAnalysis: any, existingTests?: string): AITest
   return suggestions;
 }
 
-function suggestTestImprovements(_codeAnalysis: any, _existingTests?: string): AITestSuggestion[] {
+function suggestTestImprovements(
+  _codeAnalysis: unknown,
+  _existingTests?: string
+): AITestSuggestion[] {
   const suggestions: AITestSuggestion[] = [];
 
   // Mock improvement suggestions
@@ -568,7 +578,7 @@ function suggestTestImprovements(_codeAnalysis: any, _existingTests?: string): A
   return suggestions;
 }
 
-function identifyEdgeCases(_codeAnalysis: any): AITestSuggestion[] {
+function identifyEdgeCases(_codeAnalysis: unknown): AITestSuggestion[] {
   const suggestions: AITestSuggestion[] = [];
 
   // Mock edge case identification
@@ -584,7 +594,7 @@ function identifyEdgeCases(_codeAnalysis: any): AITestSuggestion[] {
   return suggestions;
 }
 
-function calculateQualityScore(codeAnalysis: any, testAnalysis: any): number {
+function calculateQualityScore(codeAnalysis: unknown, testAnalysis: unknown): number {
   // Mock quality score calculation
   let score = 0.5;
 
@@ -592,14 +602,18 @@ function calculateQualityScore(codeAnalysis: any, testAnalysis: any): number {
     score += 0.3;
   }
 
-  if (codeAnalysis.complexity < 10) {
+  const typedAnalysis = codeAnalysis as { complexity?: number };
+  if (typedAnalysis.complexity !== undefined && typedAnalysis.complexity < 10) {
     score += 0.2;
   }
 
   return Math.min(1, score);
 }
 
-function analyzeTestCoverage(_codeAnalysis: any, _testAnalysis: any): any {
+function analyzeTestCoverage(
+  _codeAnalysis: unknown,
+  _testAnalysis: unknown
+): { current: number; recommended: number; gaps: string[] } {
   return {
     current: _testAnalysis ? 75 : 0,
     recommended: 85,
@@ -607,7 +621,11 @@ function analyzeTestCoverage(_codeAnalysis: any, _testAnalysis: any): any {
   };
 }
 
-function assessTestQuality(testAnalysis: any): any {
+function assessTestQuality(testAnalysis: unknown): {
+  effectiveness: number;
+  maintainability: number;
+  readability: number;
+} {
   return {
     effectiveness: testAnalysis ? 0.8 : 0.3,
     maintainability: 0.7,
@@ -616,8 +634,8 @@ function assessTestQuality(testAnalysis: any): any {
 }
 
 function generateRecommendations(
-  _codeAnalysis: any,
-  _testAnalysis: any,
+  _codeAnalysis: unknown,
+  _testAnalysis: unknown,
   issues: AITestSuggestion[]
 ): string[] {
   const recommendations: string[] = [];
@@ -626,7 +644,8 @@ function generateRecommendations(
     recommendations.push('Address high-priority test suggestions to improve coverage');
   }
 
-  if (_codeAnalysis.complexity > 15) {
+  const typedAnalysis = _codeAnalysis as { complexity?: number };
+  if (typedAnalysis.complexity !== undefined && typedAnalysis.complexity > 15) {
     recommendations.push('Consider breaking down complex functions for better testability');
   }
 
@@ -636,7 +655,12 @@ function generateRecommendations(
   return recommendations;
 }
 
-function identifyParallelizationOpportunities(_testAnalysis: any): any[] {
+function identifyParallelizationOpportunities(_testAnalysis: unknown): Array<{
+  type: 'parallelization' | 'mocking' | 'fixture' | 'refactoring';
+  description: string;
+  code: string;
+  impact: { speedImprovement: number; resourceReduction: number };
+}> {
   return [
     {
       type: 'parallelization',
@@ -647,7 +671,10 @@ function identifyParallelizationOpportunities(_testAnalysis: any): any[] {
   ];
 }
 
-function detectFlakyTests(_testAnalysis: any, _performanceData?: any): any[] {
+function detectFlakyTests(
+  _testAnalysis: unknown,
+  _performanceData?: unknown
+): Array<{ testName: string; flakinessScore: number; causes: string[]; fixes: string[] }> {
   return [
     {
       testName: 'async test',
@@ -658,7 +685,10 @@ function detectFlakyTests(_testAnalysis: any, _performanceData?: any): any[] {
   ];
 }
 
-function identifyPerformanceBottlenecks(_testAnalysis: any, _performanceData?: any): any[] {
+function identifyPerformanceBottlenecks(
+  _testAnalysis: unknown,
+  _performanceData?: unknown
+): Array<{ location: string; issue: string; solution: string; improvement: number }> {
   return [
     {
       location: 'database setup',
@@ -669,7 +699,12 @@ function identifyPerformanceBottlenecks(_testAnalysis: any, _performanceData?: a
   ];
 }
 
-function suggestMockingImprovements(_testAnalysis: any): any[] {
+function suggestMockingImprovements(_testAnalysis: unknown): Array<{
+  type: 'parallelization' | 'mocking' | 'fixture' | 'refactoring';
+  description: string;
+  code: string;
+  impact: { speedImprovement: number; resourceReduction: number };
+}> {
   return [
     {
       type: 'mocking',
@@ -680,7 +715,9 @@ function suggestMockingImprovements(_testAnalysis: any): any[] {
   ];
 }
 
-function parseRequirements(_requirements: string): any[] {
+function parseRequirements(
+  _requirements: string
+): Array<{ description: string; priority: number }> {
   // Mock requirements parsing
   return [
     {
@@ -690,7 +727,10 @@ function parseRequirements(_requirements: string): any[] {
   ];
 }
 
-function generateTestCasesForScenario(_scenario: any, _options: Partial<AITestOptions>): string[] {
+function generateTestCasesForScenario(
+  _scenario: unknown,
+  _options: Partial<AITestOptions>
+): string[] {
   return [
     'Successful authentication',
     'Invalid credentials',
@@ -698,7 +738,9 @@ function generateTestCasesForScenario(_scenario: any, _options: Partial<AITestOp
   ];
 }
 
-function analyzeComplexityRisks(_codeAnalysis: any): any[] {
+function analyzeComplexityRisks(
+  _codeAnalysis: unknown
+): Array<{ location: string; risk: number; reason: string; prevention: string }> {
   return [
     {
       location: 'complex function',
@@ -709,7 +751,10 @@ function analyzeComplexityRisks(_codeAnalysis: any): any[] {
   ];
 }
 
-function identifyFailurePatterns(_codeAnalysis: any, _recentChanges?: string): any[] {
+function identifyFailurePatterns(
+  _codeAnalysis: unknown,
+  _recentChanges?: string
+): Array<{ location: string; risk: number; reason: string; prevention: string }> {
   return [
     {
       location: 'async code',
@@ -720,7 +765,9 @@ function identifyFailurePatterns(_codeAnalysis: any, _recentChanges?: string): a
   ];
 }
 
-function analyzeHistoricalPatterns(_historicalData: any): any[] {
+function analyzeHistoricalPatterns(
+  _historicalData: unknown
+): Array<{ location: string; risk: number; reason: string; prevention: string }> {
   return [
     {
       location: 'frequently changed module',

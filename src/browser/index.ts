@@ -206,6 +206,91 @@ export const DEVICE_PRESETS: Record<string, DevicePreset> = {
 };
 
 /**
+ * Execute a single browser test with timeout and error handling
+ */
+async function executeBrowserTest(
+  browserConfig: BrowserConfig,
+  testFunction: (browser: BrowserInstance) => Promise<void>,
+  timeout: number,
+  screenshotOnFailure: boolean
+): Promise<BrowserTestOutcome> {
+  const browserStartTime = Date.now();
+
+  try {
+    // Create browser instance (mock implementation)
+    const browserInstance: BrowserInstance = createMockBrowserInstance(browserConfig);
+
+    // Run test function
+    await Promise.race([
+      testFunction(browserInstance),
+      new Promise((_resolve, reject) =>
+        setTimeout(() => reject(new Error(`Test timeout after ${timeout}ms`)), timeout)
+      ),
+    ]);
+
+    await browserInstance.close();
+
+    return {
+      browser: browserConfig.name,
+      passed: true,
+      duration: Date.now() - browserStartTime,
+    };
+  } catch (error) {
+    const duration = Date.now() - browserStartTime;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    let screenshot: Buffer | undefined;
+    if (screenshotOnFailure) {
+      // In real implementation, take screenshot of failure
+      screenshot = Buffer.from('mock-screenshot');
+    }
+
+    const failureResult: BrowserTestOutcome = {
+      browser: browserConfig.name,
+      passed: false,
+      duration,
+      error: errorMessage,
+    };
+    if (screenshot) {
+      failureResult.screenshot = screenshot;
+    }
+    return failureResult;
+  }
+}
+
+/**
+ * Run tests across all browsers in parallel
+ */
+async function runBrowserTestsInParallel(
+  browsers: BrowserConfig[],
+  testFunction: (browser: BrowserInstance) => Promise<void>,
+  timeout: number,
+  screenshotOnFailure: boolean
+): Promise<CrossBrowserTestResult['browserResults']> {
+  const browserResults: CrossBrowserTestResult['browserResults'] = [];
+  const promises = browsers.map((browser) =>
+    executeBrowserTest(browser, testFunction, timeout, screenshotOnFailure)
+  );
+  const results = await Promise.allSettled(promises);
+
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
+      browserResults.push(result.value);
+    } else {
+      const errorResult = {
+        browser: browsers[index]?.name ?? 'unknown',
+        passed: false,
+        duration: 0,
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+      };
+      browserResults.push(errorResult);
+    }
+  });
+
+  return browserResults;
+}
+
+/**
  * Run cross-browser tests
  */
 export async function testCrossBrowser(
@@ -219,75 +304,21 @@ export async function testCrossBrowser(
 ): Promise<CrossBrowserTestResult> {
   const { timeout = 30000, screenshotOnFailure = true, parallel = false } = options;
 
-  const browserResults: CrossBrowserTestResult['browserResults'] = [];
   const startTime = Date.now();
-
-  const runBrowserTest = async (browserConfig: BrowserConfig): Promise<BrowserTestOutcome> => {
-    const browserStartTime = Date.now();
-
-    try {
-      // Create browser instance (mock implementation)
-      const browserInstance: BrowserInstance = createMockBrowserInstance(browserConfig);
-
-      // Run test function
-      await Promise.race([
-        testFunction(browserInstance),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Test timeout after ${timeout}ms`)), timeout)
-        ),
-      ]);
-
-      await browserInstance.close();
-
-      return {
-        browser: browserConfig.name,
-        passed: true,
-        duration: Date.now() - browserStartTime,
-      };
-    } catch (error) {
-      const duration = Date.now() - browserStartTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-
-      let screenshot: Buffer | undefined;
-      if (screenshotOnFailure) {
-        // In real implementation, take screenshot of failure
-        screenshot = Buffer.from('mock-screenshot');
-      }
-
-      const failureResult: BrowserTestOutcome = {
-        browser: browserConfig.name,
-        passed: false,
-        duration,
-        error: errorMessage,
-      };
-      if (screenshot) {
-        failureResult.screenshot = screenshot;
-      }
-      return failureResult;
-    }
-  };
+  let browserResults: CrossBrowserTestResult['browserResults'];
 
   // Run tests
   if (parallel) {
-    const promises = browsers.map((browser) => runBrowserTest(browser));
-    const results = await Promise.allSettled(promises);
-
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        browserResults.push(result.value);
-      } else {
-        const errorResult = {
-          browser: browsers[index]?.name ?? 'unknown',
-          passed: false,
-          duration: 0,
-          error: result.reason instanceof Error ? result.reason.message : String(result.reason),
-        };
-        browserResults.push(errorResult);
-      }
-    });
+    browserResults = await runBrowserTestsInParallel(
+      browsers,
+      testFunction,
+      timeout,
+      screenshotOnFailure
+    );
   } else {
+    browserResults = [];
     for (const browser of browsers) {
-      const result = await runBrowserTest(browser);
+      const result = await executeBrowserTest(browser, testFunction, timeout, screenshotOnFailure);
       browserResults.push(result);
     }
   }
@@ -310,10 +341,10 @@ export async function testCrossBrowser(
 export async function testMobileResponsiveness(
   page: BrowserInstance,
   devices: DevicePreset[] = [
-    DEVICE_PRESETS['iPhone 12']!,
-    DEVICE_PRESETS['Pixel 5']!,
-    DEVICE_PRESETS['iPad']!,
-  ],
+    DEVICE_PRESETS['iPhone 12'],
+    DEVICE_PRESETS['Pixel 5'],
+    DEVICE_PRESETS['iPad'],
+  ].filter((device): device is DevicePreset => device !== undefined),
   testFunction?: (page: BrowserInstance, device: DevicePreset) => Promise<void>
 ): Promise<Array<{ device: string; passed: boolean; issues: BrowserCompatibilityIssue[] }>> {
   const results: Array<{ device: string; passed: boolean; issues: BrowserCompatibilityIssue[] }> =
@@ -385,6 +416,94 @@ export async function mobileEmulation(
 }
 
 /**
+ * Check CSS feature compatibility
+ */
+async function checkCSSCompatibility(page: BrowserInstance): Promise<BrowserCompatibilityIssue[]> {
+  return await page.evaluate(() => {
+    const compatibilityIssues: BrowserCompatibilityIssue[] = [];
+
+    // Check for unsupported CSS features
+    const testElement = document.createElement('div');
+    testElement.style.cssText = `
+      display: grid;
+      display: flex;
+      backdrop-filter: blur(10px);
+      mask-image: linear-gradient(black, transparent);
+    `;
+    document.body.appendChild(testElement);
+
+    // Check grid support
+    if (window.getComputedStyle(testElement).display !== 'grid') {
+      compatibilityIssues.push({
+        browser: navigator.userAgent,
+        type: 'css',
+        severity: 'medium',
+        description: 'CSS Grid not supported',
+        suggestion: 'Provide fallback layout using flexbox',
+      });
+    }
+
+    // Check backdrop-filter support
+    if (!('backdropFilter' in testElement.style)) {
+      compatibilityIssues.push({
+        browser: navigator.userAgent,
+        type: 'css',
+        severity: 'low',
+        description: 'Backdrop-filter not supported',
+        suggestion: 'Provide fallback background effect',
+      });
+    }
+
+    document.body.removeChild(testElement);
+    return compatibilityIssues;
+  });
+}
+
+/**
+ * Check JavaScript feature compatibility
+ */
+async function checkJavaScriptCompatibility(
+  page: BrowserInstance
+): Promise<BrowserCompatibilityIssue[]> {
+  return await page.evaluate(() => {
+    const compatibilityIssues: BrowserCompatibilityIssue[] = [];
+
+    // Check for modern JS features
+    if (!window.Promise) {
+      compatibilityIssues.push({
+        browser: navigator.userAgent,
+        type: 'javascript',
+        severity: 'critical',
+        description: 'Promises not supported',
+        suggestion: 'Include Promise polyfill',
+      });
+    }
+
+    if (!window.fetch) {
+      compatibilityIssues.push({
+        browser: navigator.userAgent,
+        type: 'javascript',
+        severity: 'high',
+        description: 'Fetch API not supported',
+        suggestion: 'Include fetch polyfill or use XMLHttpRequest',
+      });
+    }
+
+    if (!('IntersectionObserver' in window)) {
+      compatibilityIssues.push({
+        browser: navigator.userAgent,
+        type: 'javascript',
+        severity: 'medium',
+        description: 'IntersectionObserver not supported',
+        suggestion: 'Provide fallback for lazy loading',
+      });
+    }
+
+    return compatibilityIssues;
+  });
+}
+
+/**
  * Detect browser compatibility issues
  */
 export async function detectCompatibilityIssues(
@@ -395,85 +514,11 @@ export async function detectCompatibilityIssues(
 
   try {
     // Check CSS support
-    const cssIssues = await page.evaluate(() => {
-      const compatibilityIssues: BrowserCompatibilityIssue[] = [];
-
-      // Check for unsupported CSS features
-      const testElement = document.createElement('div');
-      testElement.style.cssText = `
-        display: grid;
-        display: flex;
-        backdrop-filter: blur(10px);
-        mask-image: linear-gradient(black, transparent);
-      `;
-      document.body.appendChild(testElement);
-
-      // Check grid support
-      if (window.getComputedStyle(testElement).display !== 'grid') {
-        compatibilityIssues.push({
-          browser: navigator.userAgent,
-          type: 'css',
-          severity: 'medium',
-          description: 'CSS Grid not supported',
-          suggestion: 'Provide fallback layout using flexbox',
-        });
-      }
-
-      // Check backdrop-filter support
-      if (!('backdropFilter' in testElement.style)) {
-        compatibilityIssues.push({
-          browser: navigator.userAgent,
-          type: 'css',
-          severity: 'low',
-          description: 'Backdrop-filter not supported',
-          suggestion: 'Provide fallback background effect',
-        });
-      }
-
-      document.body.removeChild(testElement);
-      return compatibilityIssues;
-    });
-
+    const cssIssues = await checkCSSCompatibility(page);
     issues.push(...cssIssues);
 
     // Check JavaScript features
-    const jsIssues = await page.evaluate(() => {
-      const compatibilityIssues: BrowserCompatibilityIssue[] = [];
-
-      // Check for modern JS features
-      if (!window.Promise) {
-        compatibilityIssues.push({
-          browser: navigator.userAgent,
-          type: 'javascript',
-          severity: 'critical',
-          description: 'Promises not supported',
-          suggestion: 'Include Promise polyfill',
-        });
-      }
-
-      if (!window.fetch) {
-        compatibilityIssues.push({
-          browser: navigator.userAgent,
-          type: 'javascript',
-          severity: 'high',
-          description: 'Fetch API not supported',
-          suggestion: 'Include fetch polyfill or use XMLHttpRequest',
-        });
-      }
-
-      if (!('IntersectionObserver' in window)) {
-        compatibilityIssues.push({
-          browser: navigator.userAgent,
-          type: 'javascript',
-          severity: 'medium',
-          description: 'IntersectionObserver not supported',
-          suggestion: 'Provide fallback for lazy loading',
-        });
-      }
-
-      return compatibilityIssues;
-    });
-
+    const jsIssues = await checkJavaScriptCompatibility(page);
     issues.push(...jsIssues);
   } catch (error) {
     issues.push({
@@ -486,6 +531,70 @@ export async function detectCompatibilityIssues(
   }
 
   return issues;
+}
+
+/**
+ * Add browser results to the report
+ */
+function appendBrowserResults(lines: string[], results: CrossBrowserTestResult): void {
+  lines.push('## Browser Results');
+  lines.push('');
+  results.browserResults.forEach((result) => {
+    lines.push(`### ${result.browser}`);
+    lines.push(`- **Status**: ${result.passed ? '✅ Passed' : '❌ Failed'}`);
+    lines.push(`- **Duration**: ${result.duration}ms`);
+    if (result.error) {
+      lines.push(`- **Error**: ${result.error}`);
+    }
+    lines.push('');
+  });
+}
+
+/**
+ * Add issues of a specific severity to the report
+ */
+function appendIssuesBySeverity(
+  lines: string[],
+  issues: BrowserCompatibilityIssue[],
+  title: string
+): void {
+  if (issues.length === 0) {
+    return;
+  }
+
+  lines.push(`### ${title}`);
+  issues.forEach((issue) => {
+    lines.push(`- **${issue.browser}**: ${issue.description}`);
+    if (issue.suggestion) {
+      lines.push(`  - *Fix*: ${issue.suggestion}`);
+    }
+  });
+  lines.push('');
+}
+
+/**
+ * Add compatibility issues to the report
+ */
+function appendCompatibilityIssues(
+  lines: string[],
+  compatibilityIssues: BrowserCompatibilityIssue[]
+): void {
+  if (compatibilityIssues.length === 0) {
+    return;
+  }
+
+  lines.push('## Compatibility Issues');
+  lines.push('');
+
+  const criticalIssues = compatibilityIssues.filter((index) => index.severity === 'critical');
+  const highIssues = compatibilityIssues.filter((index) => index.severity === 'high');
+  const mediumIssues = compatibilityIssues.filter((index) => index.severity === 'medium');
+  const lowIssues = compatibilityIssues.filter((index) => index.severity === 'low');
+
+  appendIssuesBySeverity(lines, criticalIssues, '🚨 Critical Issues');
+  appendIssuesBySeverity(lines, highIssues, '🔴 High Priority');
+  appendIssuesBySeverity(lines, mediumIssues, '🟡 Medium Priority');
+  appendIssuesBySeverity(lines, lowIssues, '🟢 Low Priority');
 }
 
 /**
@@ -505,71 +614,8 @@ export function generateCompatibilityReport(
   lines.push(`- **Timestamp**: ${results.timestamp}`);
   lines.push('');
 
-  lines.push('## Browser Results');
-  lines.push('');
-  results.browserResults.forEach((result) => {
-    lines.push(`### ${result.browser}`);
-    lines.push(`- **Status**: ${result.passed ? '✅ Passed' : '❌ Failed'}`);
-    lines.push(`- **Duration**: ${result.duration}ms`);
-    if (result.error) {
-      lines.push(`- **Error**: ${result.error}`);
-    }
-    lines.push('');
-  });
-
-  if (compatibilityIssues.length > 0) {
-    lines.push('## Compatibility Issues');
-    lines.push('');
-
-    const criticalIssues = compatibilityIssues.filter((index) => index.severity === 'critical');
-    const highIssues = compatibilityIssues.filter((index) => index.severity === 'high');
-    const mediumIssues = compatibilityIssues.filter((index) => index.severity === 'medium');
-    const lowIssues = compatibilityIssues.filter((index) => index.severity === 'low');
-
-    if (criticalIssues.length > 0) {
-      lines.push('### 🚨 Critical Issues');
-      criticalIssues.forEach((issue) => {
-        lines.push(`- **${issue.browser}**: ${issue.description}`);
-        if (issue.suggestion) {
-          lines.push(`  - *Fix*: ${issue.suggestion}`);
-        }
-      });
-      lines.push('');
-    }
-
-    if (highIssues.length > 0) {
-      lines.push('### 🔴 High Priority');
-      highIssues.forEach((issue) => {
-        lines.push(`- **${issue.browser}**: ${issue.description}`);
-        if (issue.suggestion) {
-          lines.push(`  - *Fix*: ${issue.suggestion}`);
-        }
-      });
-      lines.push('');
-    }
-
-    if (mediumIssues.length > 0) {
-      lines.push('### 🟡 Medium Priority');
-      mediumIssues.forEach((issue) => {
-        lines.push(`- **${issue.browser}**: ${issue.description}`);
-        if (issue.suggestion) {
-          lines.push(`  - *Fix*: ${issue.suggestion}`);
-        }
-      });
-      lines.push('');
-    }
-
-    if (lowIssues.length > 0) {
-      lines.push('### 🟢 Low Priority');
-      lowIssues.forEach((issue) => {
-        lines.push(`- **${issue.browser}**: ${issue.description}`);
-        if (issue.suggestion) {
-          lines.push(`  - *Fix*: ${issue.suggestion}`);
-        }
-      });
-      lines.push('');
-    }
-  }
+  appendBrowserResults(lines, results);
+  appendCompatibilityIssues(lines, compatibilityIssues);
 
   return lines.join('\n');
 }
@@ -580,29 +626,34 @@ export function generateCompatibilityReport(
 function createMockBrowserInstance(config: BrowserConfig): BrowserInstance {
   return {
     name: config.name,
-    async goto(url: string): Promise<void> {
+    goto: (url: string): Promise<void> => {
       browserLogger.info(`Mock navigation`, { url });
+      return Promise.resolve();
     },
-    async screenshot(): Promise<Buffer> {
-      return Buffer.from('mock-screenshot');
+    screenshot: (): Promise<Buffer> => {
+      return Promise.resolve(Buffer.from('mock-screenshot'));
     },
-    async evaluate<T>(function_: () => T): Promise<T> {
-      return function_();
+    evaluate: <T>(function_: () => T): Promise<T> => {
+      return Promise.resolve(function_());
     },
-    async waitForSelector(selector: string): Promise<void> {
+    waitForSelector: (selector: string): Promise<void> => {
       browserLogger.info(`Mock waiting for selector`, { selector });
+      return Promise.resolve();
     },
-    async click(selector: string): Promise<void> {
+    click: (selector: string): Promise<void> => {
       browserLogger.info(`Mock click`, { selector });
+      return Promise.resolve();
     },
-    async type(selector: string, text: string): Promise<void> {
+    type: (selector: string, text: string): Promise<void> => {
       browserLogger.info(`Mock type`, { selector, text });
+      return Promise.resolve();
     },
-    async textContent(selector: string): Promise<string | null> {
-      return `Mock text from ${selector}`;
+    textContent: (selector: string): Promise<string | null> => {
+      return Promise.resolve(`Mock text from ${selector}`);
     },
-    async close(): Promise<void> {
+    close: (): Promise<void> => {
       browserLogger.info('Mock browser closed');
+      return Promise.resolve();
     },
   };
 }

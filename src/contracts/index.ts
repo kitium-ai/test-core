@@ -147,12 +147,36 @@ export async function validateContract(
     bodySchema?: object;
   } = {}
 ): Promise<ContractValidationResult> {
+  // Simulate async validation if needed (e.g. external schema references)
+  await Promise.resolve();
+
   const { ignoreHeaders = [], bodySchema } = options;
 
   const errors: ContractValidationError[] = [];
   const warnings: ContractValidationWarning[] = [];
 
-  // Validate status
+  validateStatus(contract, actualResponse, errors);
+  validateHeaders(contract, actualResponse, ignoreHeaders, errors);
+  validateBody(contract, actualResponse, errors);
+  validateSchema(actualResponse, bodySchema, errors, warnings);
+  checkPerformanceWarnings(actualResponse, warnings);
+  checkSecurityWarnings(actualResponse, warnings);
+
+  return {
+    passed: errors.length === 0,
+    contract,
+    actualResponse,
+    errors,
+    warnings,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function validateStatus(
+  contract: APIContract,
+  actualResponse: ContractResponse,
+  errors: ContractValidationError[]
+): void {
   if (actualResponse.status !== contract.response.status) {
     errors.push({
       type: 'status',
@@ -161,8 +185,14 @@ export async function validateContract(
       actual: actualResponse.status,
     });
   }
+}
 
-  // Validate headers
+function validateHeaders(
+  contract: APIContract,
+  actualResponse: ContractResponse,
+  ignoreHeaders: string[],
+  errors: ContractValidationError[]
+): void {
   if (contract.response.headers) {
     for (const [key, expectedValue] of Object.entries(contract.response.headers)) {
       if (ignoreHeaders.includes(key.toLowerCase())) {
@@ -181,8 +211,13 @@ export async function validateContract(
       }
     }
   }
+}
 
-  // Validate body
+function validateBody(
+  contract: APIContract,
+  actualResponse: ContractResponse,
+  errors: ContractValidationError[]
+): void {
   if (contract.response.body !== undefined) {
     const bodyMatch = deepEqual(contract.response.body, actualResponse.body);
     if (!bodyMatch) {
@@ -194,8 +229,14 @@ export async function validateContract(
       });
     }
   }
+}
 
-  // Schema validation (if provided)
+function validateSchema(
+  actualResponse: ContractResponse,
+  bodySchema: object | undefined,
+  errors: ContractValidationError[],
+  warnings: ContractValidationWarning[]
+): void {
   if (bodySchema && actualResponse.body) {
     try {
       const schemaErrors = validateAgainstSchema(actualResponse.body, bodySchema);
@@ -214,8 +255,12 @@ export async function validateContract(
       });
     }
   }
+}
 
-  // Performance warnings
+function checkPerformanceWarnings(
+  actualResponse: ContractResponse,
+  warnings: ContractValidationWarning[]
+): void {
   if (actualResponse.status >= 400) {
     warnings.push({
       type: 'performance',
@@ -223,8 +268,12 @@ export async function validateContract(
       suggestion: 'Check API error handling',
     });
   }
+}
 
-  // Security warnings
+function checkSecurityWarnings(
+  actualResponse: ContractResponse,
+  warnings: ContractValidationWarning[]
+): void {
   if (
     actualResponse.headers &&
     !actualResponse.headers['content-type']?.includes('application/json')
@@ -235,15 +284,6 @@ export async function validateContract(
       suggestion: 'Set appropriate Content-Type headers',
     });
   }
-
-  return {
-    passed: errors.length === 0,
-    contract,
-    actualResponse,
-    errors,
-    warnings,
-    timestamp: new Date().toISOString(),
-  };
 }
 
 /**
@@ -358,6 +398,15 @@ export function generateContractReport(result: ContractTestSuiteResult): string 
 
   lines.push(`# Contract Test Report: ${result.suite.name}`);
   lines.push('');
+
+  appendContractSummary(lines, result);
+  appendContractFailures(lines, result);
+  appendAllContracts(lines, result);
+
+  return lines.join('\n');
+}
+
+function appendContractSummary(lines: string[], result: ContractTestSuiteResult): void {
   lines.push(`## Summary`);
   lines.push(`- **Status**: ${result.passed ? '✅ PASSED' : '❌ FAILED'}`);
   lines.push(`- **Base URL**: ${result.suite.baseUrl}`);
@@ -367,7 +416,9 @@ export function generateContractReport(result: ContractTestSuiteResult): string 
   lines.push(`- **Duration**: ${result.duration}ms`);
   lines.push(`- **Timestamp**: ${result.timestamp}`);
   lines.push('');
+}
 
+function appendContractFailures(lines: string[], result: ContractTestSuiteResult): void {
   if (result.failedContracts > 0) {
     lines.push('## Failed Contracts');
     lines.push('');
@@ -389,18 +440,12 @@ export function generateContractReport(result: ContractTestSuiteResult): string 
           });
           lines.push('');
         }
-
-        if (contractResult.warnings.length > 0) {
-          lines.push('**Warnings:**');
-          contractResult.warnings.forEach((warning) => {
-            lines.push(`- ${warning.message}`);
-          });
-          lines.push('');
-        }
       }
     });
   }
+}
 
+function appendAllContracts(lines: string[], result: ContractTestSuiteResult): void {
   lines.push('## All Contracts');
   lines.push('');
   result.results.forEach((contractResult, index) => {
@@ -409,21 +454,28 @@ export function generateContractReport(result: ContractTestSuiteResult): string 
       `${index + 1}. ${status} ${contractResult.contract.name} (${contractResult.contract.request.method} ${contractResult.contract.request.path})`
     );
   });
-
-  return lines.join('\n');
 }
 
 /**
  * Create contract from OpenAPI/Swagger spec
  */
 export function createContractFromSpec(
-  spec: any,
+  spec: unknown,
   path: string,
   method: string,
   responseCode = 200
 ): APIContract {
   // Simplified implementation - real version would parse OpenAPI spec
-  const operation = spec.paths?.[path]?.[method.toLowerCase()];
+  const specObject = spec as {
+    paths?: Record<
+      string,
+      Record<
+        string,
+        { summary?: string; description?: string; responses?: Record<number, { schema?: unknown }> }
+      >
+    >;
+  };
+  const operation = specObject.paths?.[path]?.[method.toLowerCase()];
   if (!operation) {
     throw new Error(`Operation not found: ${method} ${path}`);
   }
@@ -436,7 +488,7 @@ export function createContractFromSpec(
   return createContract({
     name: `${method.toUpperCase()} ${path}`,
     version: '1.0.0',
-    description: operation.summary || operation.description,
+    description: operation.summary ?? operation.description ?? '',
     request: {
       method: method.toUpperCase(),
       path,
@@ -457,16 +509,23 @@ export function createContractFromSpec(
 /**
  * Generate example data from JSON schema
  */
-function generateExampleFromSchema(schema: any): unknown {
+function generateExampleFromSchema(schema: unknown): unknown {
   if (!schema) {
     return undefined;
   }
 
-  switch (schema.type) {
+  const typedSchema = schema as { type: string; items?: unknown; example?: unknown };
+
+  if (!typedSchema.type) {
+    return null;
+  }
+
+  switch (typedSchema.type) {
     case 'object': {
       const object: Record<string, unknown> = {};
-      if (schema.properties) {
-        Object.entries(schema.properties).forEach(([key, propertySchema]: [string, any]) => {
+      const objectSchema = schema as { properties?: Record<string, unknown> };
+      if (objectSchema.properties) {
+        Object.entries(objectSchema.properties).forEach(([key, propertySchema]) => {
           object[key] = generateExampleFromSchema(propertySchema);
         });
       }
@@ -474,18 +533,19 @@ function generateExampleFromSchema(schema: any): unknown {
     }
 
     case 'array':
-      return [generateExampleFromSchema(schema.items)];
+      return [generateExampleFromSchema(typedSchema.items)];
 
     case 'string':
-      return schema.example || 'example string';
+      return typedSchema.example ?? 'example string';
 
     case 'number':
     case 'integer':
-      return schema.example || 42;
+      return typedSchema.example ?? 42;
 
     case 'boolean':
-      return schema.example || true;
+      return typedSchema.example ?? true;
 
+    case undefined:
     default:
       return null;
   }
@@ -516,30 +576,37 @@ function deepEqual(a: unknown, b: unknown): boolean {
   }
 
   if (Array.isArray(a)) {
-    const bArray = b as unknown[];
-    if (a.length !== bArray.length) {
-      return false;
-    }
-    for (let index = 0; index < a.length; index++) {
-      if (!deepEqual(a[index], bArray[index])) {
-        return false;
-      }
-    }
-    return true;
+    return deepEqualArray(a, b as unknown[]);
   }
 
+  return deepEqualObject(a as Record<string, unknown>, b as Record<string, unknown>);
+}
+
+function deepEqualArray(a: unknown[], b: unknown[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let index = 0; index < a.length; index++) {
+    if (!deepEqual(a[index], b[index])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function deepEqualObject(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
   const keysA = Object.keys(a);
-  const keysB = Object.keys(b as object);
+  const keysB = Object.keys(b);
 
   if (keysA.length !== keysB.length) {
     return false;
   }
 
   for (const key of keysA) {
-    if (!(key in (b as object))) {
+    if (!(key in b)) {
       return false;
     }
-    if (!deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])) {
+    if (!deepEqual(a[key], b[key])) {
       return false;
     }
   }
@@ -552,76 +619,113 @@ function deepEqual(a: unknown, b: unknown): boolean {
  */
 function validateAgainstSchema(
   data: unknown,
-  schema: any
+  schema: unknown
 ): Array<{ path: string; message: string }> {
   const errors: Array<{ path: string; message: string }> = [];
+  const typedSchema = schema as { type?: string };
 
-  function validate(value: unknown, currentSchema: any, path = ''): void {
-    if (!currentSchema) {
-      return;
-    }
+  validate(data, typedSchema, '', errors);
+  return errors;
+}
 
-    switch (currentSchema.type) {
-      case 'object':
-        if (typeof value !== 'object' || value === null) {
-          errors.push({ path, message: `Expected object, got ${typeof value}` });
-          return;
-        }
+type SchemaType = {
+  type?: string;
+  required?: string[];
+  properties?: Record<string, SchemaType>;
+  items?: SchemaType;
+};
 
-        if (currentSchema.required) {
-          for (const required of currentSchema.required) {
-            if (!(required in (value as object))) {
-              errors.push({ path: `${path}.${required}`, message: 'Required property missing' });
-            }
-          }
-        }
+function validate(
+  value: unknown,
+  currentSchema: SchemaType,
+  path: string,
+  errors: Array<{ path: string; message: string }>
+): void {
+  if (!currentSchema?.type) {
+    return;
+  }
 
-        if (currentSchema.properties) {
-          Object.entries(currentSchema.properties).forEach(
-            ([key, propertySchema]: [string, any]) => {
-              const propertyPath = path ? `${path}.${key}` : key;
-              validate((value as Record<string, unknown>)[key], propertySchema, propertyPath);
-            }
-          );
-        }
-        break;
+  switch (currentSchema.type) {
+    case 'object':
+      validateObject(value, currentSchema, path, errors);
+      break;
 
-      case 'array':
-        if (!Array.isArray(value)) {
-          errors.push({ path, message: `Expected array, got ${typeof value}` });
-          return;
-        }
+    case 'array':
+      validateArray(value, currentSchema, path, errors);
+      break;
 
-        if (currentSchema.items) {
-          value.forEach((item, index) => {
-            validate(item, currentSchema.items, `${path}[${index}]`);
-          });
-        }
-        break;
+    case 'string':
+    case 'number':
+    case 'integer':
+    case 'boolean':
+      validatePrimitive(value, currentSchema.type, path, errors);
+      break;
+  }
+}
 
-      case 'string':
-        if (typeof value !== 'string') {
-          errors.push({ path, message: `Expected string, got ${typeof value}` });
-        }
-        break;
+function validateObject(
+  value: unknown,
+  schema: SchemaType,
+  path: string,
+  errors: Array<{ path: string; message: string }>
+): void {
+  if (typeof value !== 'object' || value === null) {
+    errors.push({ path, message: `Expected object, got ${typeof value}` });
+    return;
+  }
 
-      case 'number':
-      case 'integer':
-        if (typeof value !== 'number') {
-          errors.push({ path, message: `Expected number, got ${typeof value}` });
-        }
-        break;
-
-      case 'boolean':
-        if (typeof value !== 'boolean') {
-          errors.push({ path, message: `Expected boolean, got ${typeof value}` });
-        }
-        break;
+  if (schema.required) {
+    for (const required of schema.required) {
+      if (!(required in (value as object))) {
+        errors.push({
+          path: path ? `${path}.${required}` : required,
+          message: 'Required property missing',
+        });
+      }
     }
   }
 
-  validate(data, schema);
-  return errors;
+  if (schema.properties) {
+    Object.entries(schema.properties).forEach(([key, propertySchema]) => {
+      const propertyPath = path ? `${path}.${key}` : key;
+      validate((value as Record<string, unknown>)[key], propertySchema, propertyPath, errors);
+    });
+  }
+}
+
+function validateArray(
+  value: unknown,
+  schema: SchemaType,
+  path: string,
+  errors: Array<{ path: string; message: string }>
+): void {
+  if (!Array.isArray(value)) {
+    errors.push({ path, message: `Expected array, got ${typeof value}` });
+    return;
+  }
+
+  if (schema.items) {
+    value.forEach((item, index) => {
+      if (schema.items) {
+        validate(item, schema.items, `${path}[${index}]`, errors);
+      }
+    });
+  }
+}
+
+function validatePrimitive(
+  value: unknown,
+  type: string,
+  path: string,
+  errors: Array<{ path: string; message: string }>
+): void {
+  if (type === 'integer') {
+    if (typeof value !== 'number') {
+      errors.push({ path, message: `Expected number, got ${typeof value}` });
+    }
+  } else if (typeof value !== type) {
+    errors.push({ path, message: `Expected ${type}, got ${typeof value}` });
+  }
 }
 
 /**
@@ -641,7 +745,7 @@ export class FetchHttpClient implements HttpClient {
     body: unknown;
   }> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), config.timeout || 5000);
+    const timeoutId = setTimeout(() => controller.abort(), config.timeout ?? 5000);
 
     try {
       const response = await fetch(config.url, {

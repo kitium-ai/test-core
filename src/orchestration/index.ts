@@ -233,14 +233,14 @@ export class TestOrchestrator {
       .filter((suite) => {
         // Filter by tags
         if (tags && suite.tags) {
-          const hasMatchingTag = tags.some((tag) => suite.tags!.includes(tag));
+          const hasMatchingTag = tags.some((tag) => suite.tags?.includes(tag));
           if (!hasMatchingTag) {
             return false;
           }
         }
 
         if (excludeTags && suite.tags) {
-          const hasExcludedTag = excludeTags.some((tag) => suite.tags!.includes(tag));
+          const hasExcludedTag = excludeTags.some((tag) => suite.tags?.includes(tag));
           if (hasExcludedTag) {
             return false;
           }
@@ -281,16 +281,31 @@ export class TestOrchestrator {
     options: OrchestrationOptions = {}
   ): Promise<OrchestrationResult> {
     const startTime = Date.now();
-    const {
-      concurrency = 4,
-      sharding = false,
-      shardCount = 4,
-      shardIndex,
-      continueOnError = true,
-      enableCache = false,
-    } = options;
+    const result = this.createInitialResult();
 
-    const result: OrchestrationResult = {
+    try {
+      const filteredSuites = this.resolveAndFilterSuites(suiteNames, options);
+      let allFiles = this.collectFiles(filteredSuites);
+
+      const shardingResult = this.applySharding(allFiles, options);
+      if (shardingResult) {
+        allFiles = shardingResult.files;
+        result.sharding = shardingResult.info;
+      }
+
+      await this.processTestExecution(filteredSuites, allFiles, options, result);
+
+      this.calculateSummary(result, startTime);
+      this.enrichResultWithCacheStats(result, options);
+    } catch (error) {
+      this.recordError(result, error);
+    }
+
+    return result;
+  }
+
+  private createInitialResult(): OrchestrationResult {
+    return {
       success: false,
       totalDuration: 0,
       results: [],
@@ -304,114 +319,156 @@ export class TestOrchestrator {
       errors: [],
       timestamp: new Date().toISOString(),
     };
+  }
 
-    try {
-      // Resolve dependencies
-      const orderedSuites = this.resolveDependencies(suiteNames);
+  private async processTestExecution(
+    suites: TestSuite[],
+    allFiles: string[],
+    options: OrchestrationOptions,
+    result: OrchestrationResult
+  ): Promise<void> {
+    const { concurrency = 4, continueOnError = true } = options;
 
-      // Get and filter suites
-      const suites = orderedSuites
-        .map((name) => this.suites.get(name))
-        .filter((suite): suite is TestSuite => suite !== undefined);
+    const { successfulResults, failedPromises } = await this.executeSuites(
+      suites,
+      allFiles,
+      concurrency,
+      options
+    );
 
-      const filteredSuites = this.filterTests(suites, options);
+    result.results = successfulResults;
 
-      // Collect all test files
-      let allFiles: string[] = [];
-      filteredSuites.forEach((suite) => {
-        allFiles.push(...suite.files);
-      });
+    if (failedPromises.length > 0) {
+      this.handleFailures(failedPromises, result, continueOnError);
+    }
+  }
 
-      // Apply sharding if enabled
-      if (sharding) {
-        const shards = this.createShards(allFiles, shardCount);
-        const targetShard = shardIndex !== undefined ? shards[shardIndex] : shards[0];
+  private enrichResultWithCacheStats(
+    result: OrchestrationResult,
+    options: OrchestrationOptions
+  ): void {
+    if (options.enableCache) {
+      result.cacheStats = {
+        hits: 0,
+        misses: result.summary.total,
+        savedTime: 0,
+      };
+    }
+  }
 
-        if (targetShard) {
-          allFiles = targetShard.files;
-          result.sharding = {
-            shardIndex: targetShard.index,
-            totalShards: targetShard.total,
-            shardFiles: targetShard.files,
-          };
-        }
-      }
+  private recordError(result: OrchestrationResult, error: unknown): void {
+    result.errors.push({
+      message: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString(),
+    });
+  }
 
-      // Execute tests in parallel with concurrency limit
-      const semaphore = new Semaphore(concurrency);
-      const testPromises: Array<Promise<TestResult[]>> = [];
+  private resolveAndFilterSuites(suiteNames: string[], options: OrchestrationOptions): TestSuite[] {
+    const orderedSuites = this.resolveDependencies(suiteNames);
+    const suites = orderedSuites
+      .map((name) => this.suites.get(name))
+      .filter((suite): suite is TestSuite => suite !== undefined);
 
-      for (const suite of filteredSuites) {
-        for (const file of suite.files) {
-          if (!allFiles.includes(file)) {
-            continue;
-          }
+    return this.filterTests(suites, options);
+  }
 
-          const promise = semaphore.acquire().then(async (release) => {
-            try {
-              const suiteResults = await this.runTestSuite(suite, file, options);
-              return suiteResults;
-            } finally {
-              release();
-            }
-          });
+  private collectFiles(suites: TestSuite[]): string[] {
+    const allFiles: string[] = [];
+    suites.forEach((suite) => {
+      allFiles.push(...suite.files);
+    });
+    return allFiles;
+  }
 
-          testPromises.push(promise);
-        }
-      }
-
-      // Wait for all tests to complete
-      const allResults = await Promise.allSettled(testPromises);
-      const successfulResults = allResults
-        .filter((r): r is PromiseFulfilledResult<TestResult[]> => r.status === 'fulfilled')
-        .flatMap((r) => r.value);
-
-      const failedPromises = allResults
-        .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-        .map((r) => r.reason);
-
-      // Collect results
-      result.results = successfulResults;
-
-      // Handle failures
-      if (failedPromises.length > 0) {
-        failedPromises.forEach((error) => {
-          result.errors.push({
-            message: error instanceof Error ? error.message : String(error),
-            timestamp: new Date().toISOString(),
-          });
-        });
-
-        if (!continueOnError) {
-          throw new Error(`Test orchestration failed: ${failedPromises.length} suites failed`);
-        }
-      }
-
-      // Calculate summary
-      result.summary.total = result.results.length;
-      result.summary.passed = result.results.filter((r) => r.passed).length;
-      result.summary.failed = result.results.filter((r) => !r.passed).length;
-      result.summary.duration = Date.now() - startTime;
-
-      result.success = result.summary.failed === 0;
-      result.totalDuration = result.summary.duration;
-
-      // Cache statistics (simplified)
-      if (enableCache) {
-        result.cacheStats = {
-          hits: 0,
-          misses: result.summary.total,
-          savedTime: 0,
-        };
-      }
-    } catch (error) {
-      result.errors.push({
-        message: error instanceof Error ? error.message : String(error),
-        timestamp: new Date().toISOString(),
-      });
+  private applySharding(
+    allFiles: string[],
+    options: OrchestrationOptions
+  ):
+    | { files: string[]; info: { shardIndex: number; totalShards: number; shardFiles: string[] } }
+    | undefined {
+    if (!options.sharding) {
+      return undefined;
     }
 
-    return result;
+    const shardCount = options.shardCount ?? 4;
+    const shards = this.createShards(allFiles, shardCount);
+    const targetShard = options.shardIndex !== undefined ? shards[options.shardIndex] : shards[0];
+
+    if (targetShard) {
+      return {
+        files: targetShard.files,
+        info: {
+          shardIndex: targetShard.index,
+          totalShards: targetShard.total,
+          shardFiles: targetShard.files,
+        },
+      };
+    }
+    return undefined;
+  }
+
+  private async executeSuites(
+    suites: TestSuite[],
+    allFiles: string[],
+    concurrency: number,
+    options: OrchestrationOptions
+  ): Promise<{ successfulResults: TestResult[]; failedPromises: unknown[] }> {
+    const semaphore = new Semaphore(concurrency);
+    const testPromises: Array<Promise<TestResult[]>> = [];
+
+    for (const suite of suites) {
+      for (const file of suite.files) {
+        if (!allFiles.includes(file)) {
+          continue;
+        }
+
+        const promise = (async () => {
+          const release = await semaphore.acquire();
+          try {
+            return await this.runTestSuite(suite, file, options);
+          } finally {
+            release();
+          }
+        })();
+
+        testPromises.push(promise);
+      }
+    }
+
+    const allResults = await Promise.allSettled(testPromises);
+    const successfulResults = allResults
+      .filter((r): r is PromiseFulfilledResult<TestResult[]> => r.status === 'fulfilled')
+      .flatMap((r) => r.value);
+
+    const failedPromises = allResults
+      .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+      .map((r) => r.reason as unknown);
+
+    return { successfulResults, failedPromises };
+  }
+
+  private handleFailures(
+    failedPromises: unknown[],
+    result: OrchestrationResult,
+    continueOnError: boolean
+  ): void {
+    failedPromises.forEach((error) => {
+      this.recordError(result, error);
+    });
+
+    if (!continueOnError) {
+      throw new Error(`Test orchestration failed: ${failedPromises.length} suites failed`);
+    }
+  }
+
+  private calculateSummary(result: OrchestrationResult, startTime: number): void {
+    result.summary.total = result.results.length;
+    result.summary.passed = result.results.filter((r) => r.passed).length;
+    result.summary.failed = result.results.filter((r) => !r.passed).length;
+    result.summary.duration = Date.now() - startTime;
+
+    result.success = result.summary.failed === 0;
+    result.totalDuration = result.summary.duration;
   }
 
   /**
@@ -553,28 +610,49 @@ export function generateOrchestrationReport(result: OrchestrationResult): string
 
   lines.push('# Test Orchestration Report');
   lines.push('');
+
+  appendOrchestrationSummary(lines, result);
+  appendShardingInfo(lines, result);
+  appendCacheStats(lines, result);
+  appendFailures(lines, result);
+  appendSuiteResults(lines, result);
+
+  return lines.join('\n');
+}
+
+function appendOrchestrationSummary(lines: string[], result: OrchestrationResult): void {
   lines.push('## Summary');
   lines.push(`- **Status**: ${result.success ? '✅ PASSED' : '❌ FAILED'}`);
-  lines.push(`- **Total Tests**: ${result.summary.total}`);
+  lines.push(`- **Duration**: ${result.totalDuration}ms`);
+  lines.push(`- **Total Suites**: ${result.summary.total}`);
   lines.push(`- **Passed**: ${result.summary.passed}`);
   lines.push(`- **Failed**: ${result.summary.failed}`);
   lines.push(`- **Skipped**: ${result.summary.skipped}`);
-  lines.push(`- **Duration**: ${result.summary.duration}ms`);
-  lines.push(`- **Timestamp**: ${result.timestamp}`);
-
-  if (result.sharding) {
-    lines.push(`- **Shard**: ${result.sharding.shardIndex + 1}/${result.sharding.totalShards}`);
-    lines.push(`- **Shard Files**: ${result.sharding.shardFiles.length}`);
-  }
-
-  if (result.cacheStats) {
-    lines.push(`- **Cache Hits**: ${result.cacheStats.hits}`);
-    lines.push(`- **Cache Misses**: ${result.cacheStats.misses}`);
-    lines.push(`- **Time Saved**: ${result.cacheStats.savedTime}ms`);
-  }
-
   lines.push('');
+}
 
+function appendShardingInfo(lines: string[], result: OrchestrationResult): void {
+  if (result.sharding) {
+    lines.push('## Sharding');
+    lines.push(`- **Shard**: ${result.sharding.shardIndex + 1}/${result.sharding.totalShards}`);
+    lines.push(`- **Files**: ${result.sharding.shardFiles.length}`);
+    lines.push('');
+  }
+}
+
+function appendCacheStats(lines: string[], result: OrchestrationResult): void {
+  if (result.cacheStats) {
+    lines.push('## Cache Statistics');
+    lines.push(`- **Hits**: ${result.cacheStats.hits}`);
+    lines.push(`- **Misses**: ${result.cacheStats.misses}`);
+    if (result.cacheStats.savedTime > 0) {
+      lines.push(`- **Saved Time**: ${result.cacheStats.savedTime}ms`);
+    }
+    lines.push('');
+  }
+}
+
+function appendFailures(lines: string[], result: OrchestrationResult): void {
   if (result.errors.length > 0) {
     lines.push('## Errors');
     lines.push('');
@@ -583,24 +661,20 @@ export function generateOrchestrationReport(result: OrchestrationResult): string
     });
     lines.push('');
   }
+}
 
-  if (result.summary.failed > 0) {
-    lines.push('## Failed Tests');
+function appendSuiteResults(lines: string[], result: OrchestrationResult): void {
+  if (result.results.length > 0) {
+    lines.push('## Suite Results');
     lines.push('');
-    result.results
-      .filter((r) => !r.passed)
-      .forEach((testResult, index) => {
-        lines.push(`### ${index + 1}. ${testResult.suite} > ${testResult.file}`);
-        lines.push(`- **Test**: ${testResult.name}`);
-        lines.push(`- **Duration**: ${testResult.duration}ms`);
-        if (testResult.error) {
-          lines.push(`- **Error**: ${testResult.error}`);
-        }
-        lines.push('');
-      });
+    result.results.forEach((suite) => {
+      const icon = suite.passed ? '✅' : '❌';
+      lines.push(`### ${icon} ${suite.suite}`);
+      lines.push(`- **Duration**: ${suite.duration}ms`);
+      lines.push(`- **File**: ${suite.file}`);
+      lines.push('');
+    });
   }
-
-  return lines.join('\n');
 }
 
 /**
@@ -644,7 +718,7 @@ export function shardTests(
 ): TestShard | null {
   const orchestrator = new TestOrchestrator();
   const shards = orchestrator.createShards(files, shardCount);
-  return shards[shardIndex] || null;
+  return shards[shardIndex] ?? null;
 }
 
 /**
@@ -661,7 +735,7 @@ export function quarantineTests(
   results.forEach((result) => {
     if (!result.passed) {
       const key = `${result.suite}:${result.file}:${result.name}`;
-      failures.set(key, (failures.get(key) || 0) + 1);
+      failures.set(key, (failures.get(key) ?? 0) + 1);
     }
   });
 

@@ -153,8 +153,33 @@ export class ChaosOrchestrator {
   async runExperiment(experiment: ChaosExperiment): Promise<ChaosExperimentResult> {
     const startTime = new Date().toISOString();
     const experimentId = `${experiment.name}-${Date.now()}`;
+    const result = this.createInitialResult(experiment, startTime);
 
-    const result: ChaosExperimentResult = {
+    this.activeExperiments.set(experimentId, result);
+
+    try {
+      this.registerInjections(experiment);
+      await this.runChaosLoop(experiment, result);
+      result.completed = true;
+    } catch (error) {
+      result.errors.push({
+        timestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      this.cleanupExperiment(experiment, experimentId);
+      result.endTime = new Date().toISOString();
+      result.actualDuration = Date.now() - new Date(startTime).getTime();
+    }
+
+    return result;
+  }
+
+  private createInitialResult(
+    experiment: ChaosExperiment,
+    startTime: string
+  ): ChaosExperimentResult {
+    return {
       experiment,
       completed: false,
       actualDuration: 0,
@@ -165,87 +190,79 @@ export class ChaosOrchestrator {
       startTime,
       endTime: '',
     };
+  }
 
-    this.activeExperiments.set(experimentId, result);
+  private registerInjections(experiment: ChaosExperiment): void {
+    experiment.injections.forEach((injection) => {
+      this.registerInjection(injection);
+    });
+  }
 
-    try {
-      // Register all injections
-      experiment.injections.forEach((injection) => {
-        this.registerInjection(injection);
-      });
+  private cleanupExperiment(experiment: ChaosExperiment, experimentId: string): void {
+    experiment.injections.forEach((injection) => {
+      this.unregisterInjection(injection.target);
+    });
+    this.activeExperiments.delete(experimentId);
+  }
 
-      // Parse duration
-      const durationMs = parseDuration(experiment.duration);
-      const endTime = Date.now() + durationMs;
+  private async runChaosLoop(
+    experiment: ChaosExperiment,
+    result: ChaosExperimentResult
+  ): Promise<void> {
+    const durationMs = parseDuration(experiment.duration);
+    const endTime = Date.now() + durationMs;
 
-      // Run experiment loop
-      while (Date.now() < endTime) {
-        // Check safety conditions
-        if (experiment.safetyConditions) {
-          for (const condition of experiment.safetyConditions) {
-            const value = await this.getMetricValue(condition.metric);
-            const violated = checkCondition(value, condition);
-
-            if (violated) {
-              result.safetyViolations.push({
-                condition,
-                value,
-                timestamp: new Date().toISOString(),
-              });
-
-              // Stop experiment due to safety violation
-              throw new Error(
-                `Safety condition violated: ${condition.metric} ${condition.operator} ${condition.threshold} (actual: ${value})`
-              );
-            }
-          }
-        }
-
-        // Collect metrics
-        if (experiment.monitors) {
-          for (const metric of experiment.monitors) {
-            const value = await this.getMetricValue(metric);
-            if (!result.metrics[metric]) {
-              result.metrics[metric] = [];
-            }
-            result.metrics[metric].push({
-              timestamp: new Date().toISOString(),
-              value,
-            });
-          }
-        }
-
-        // Small delay to prevent tight loop
-        await sleep(100);
+    while (Date.now() < endTime) {
+      if (experiment.safetyConditions) {
+        await this.checkSafetyConditions(experiment.safetyConditions, result);
       }
 
-      result.completed = true;
-    } catch (error) {
-      result.errors.push({
-        timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      // Cleanup
-      experiment.injections.forEach((injection) => {
-        this.unregisterInjection(injection.target);
-      });
+      if (experiment.monitors) {
+        await this.collectMetrics(experiment.monitors, result);
+      }
 
-      result.endTime = new Date().toISOString();
-      result.actualDuration = Date.now() - new Date(startTime).getTime();
-
-      this.activeExperiments.delete(experimentId);
+      await sleep(100);
     }
+  }
 
-    return result;
+  private async checkSafetyConditions(
+    conditions: NonNullable<ChaosExperiment['safetyConditions']>,
+    result: ChaosExperimentResult
+  ): Promise<void> {
+    for (const condition of conditions) {
+      const value = await this.getMetricValue(condition.metric);
+      const violated = checkCondition(value, condition);
+
+      if (violated) {
+        result.safetyViolations.push({
+          condition,
+          value,
+          timestamp: new Date().toISOString(),
+        });
+
+        throw new Error(
+          `Safety condition violated: ${condition.metric} ${condition.operator} ${condition.threshold} (actual: ${value})`
+        );
+      }
+    }
+  }
+
+  private async collectMetrics(monitors: string[], result: ChaosExperimentResult): Promise<void> {
+    for (const metric of monitors) {
+      const value = await this.getMetricValue(metric);
+      result.metrics[metric] ??= [];
+      result.metrics[metric].push({
+        timestamp: new Date().toISOString(),
+        value,
+      });
+    }
   }
 
   /**
    * Get metric value (mock implementation)
    */
   private async getMetricValue(metric: string): Promise<number> {
-    // In real implementation, this would query monitoring systems
-    // For now, return mock values
+    await Promise.resolve(); // Simulate async check
     switch (metric) {
       case 'cpu_usage':
         return Math.random() * 100;
@@ -309,7 +326,7 @@ export async function injectNetworkChaos(
  * Inject service failure
  */
 export async function injectServiceFailure(config: ServiceChaosConfig): Promise<void> {
-  const duration = config.duration || 30000;
+  const duration = config.duration ?? 30000;
 
   // In real implementation, this would interact with service orchestration
   // systems like Kubernetes, Docker, or service meshes
@@ -383,7 +400,7 @@ export const simulateTimeout = <T extends (...args: unknown[]) => Promise<unknow
   timeoutError: Error = new Error('Simulated timeout')
 ): T => {
   const wrapped = (async (...args: Parameters<T>) => {
-    const timeoutPromise = new Promise<never>((_, reject) => {
+    const timeoutPromise = new Promise<never>((_resolve, reject) => {
       setTimeout(() => reject(timeoutError), timeoutMs);
     });
 
@@ -400,7 +417,7 @@ export class ChaosMonkey {
   private isRunning = false;
 
   constructor(orchestrator?: ChaosOrchestrator) {
-    this.orchestrator = orchestrator || new ChaosOrchestrator();
+    this.orchestrator = orchestrator ?? new ChaosOrchestrator();
   }
 
   /**
@@ -481,6 +498,16 @@ export function generateChaosReport(result: ChaosExperimentResult): string {
     lines.push('');
   }
 
+  appendSummary(lines, result);
+  appendSafetyViolations(lines, result);
+  appendTriggeredInjections(lines, result);
+  appendErrors(lines, result);
+  appendMetrics(lines, result);
+
+  return lines.join('\n');
+}
+
+function appendSummary(lines: string[], result: ChaosExperimentResult): void {
   lines.push(`## Summary`);
   lines.push(`- **Status**: ${result.completed ? '✅ COMPLETED' : '❌ FAILED'}`);
   lines.push(
@@ -495,9 +522,10 @@ export function generateChaosReport(result: ChaosExperimentResult): string {
   if (result.experiment.tags && result.experiment.tags.length > 0) {
     lines.push(`- **Tags**: ${result.experiment.tags.join(', ')}`);
   }
-
   lines.push('');
+}
 
+function appendSafetyViolations(lines: string[], result: ChaosExperimentResult): void {
   if (result.safetyViolations.length > 0) {
     lines.push('## Safety Violations');
     lines.push('');
@@ -508,7 +536,9 @@ export function generateChaosReport(result: ChaosExperimentResult): string {
     });
     lines.push('');
   }
+}
 
+function appendTriggeredInjections(lines: string[], result: ChaosExperimentResult): void {
   if (result.triggeredInjections.length > 0) {
     lines.push('## Triggered Injections');
     lines.push('');
@@ -522,7 +552,9 @@ export function generateChaosReport(result: ChaosExperimentResult): string {
     });
     lines.push('');
   }
+}
 
+function appendErrors(lines: string[], result: ChaosExperimentResult): void {
   if (result.errors.length > 0) {
     lines.push('## Errors');
     lines.push('');
@@ -531,7 +563,9 @@ export function generateChaosReport(result: ChaosExperimentResult): string {
     });
     lines.push('');
   }
+}
 
+function appendMetrics(lines: string[], result: ChaosExperimentResult): void {
   if (Object.keys(result.metrics).length > 0) {
     lines.push('## Metrics');
     lines.push('');
@@ -548,8 +582,6 @@ export function generateChaosReport(result: ChaosExperimentResult): string {
       lines.push('');
     });
   }
-
-  return lines.join('\n');
 }
 
 /**
@@ -561,7 +593,7 @@ function parseDuration(duration: string): number {
     throw new Error(`Invalid duration format: ${duration}. Use format like '5m', '30s', '1h'`);
   }
 
-  const value = parseInt(match[1]!, 10);
+  const value = parseInt(match[1] ?? '0', 10);
   const unit = match[2];
   if (!unit) {
     throw new Error('Duration unit is required');

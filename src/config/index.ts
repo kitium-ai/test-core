@@ -79,8 +79,8 @@ class TypeCoercer {
 }
 
 // Legacy exports for backward compatibility
-const coerceBoolean = TypeCoercer.toBoolean;
-const coerceNumber = TypeCoercer.toNumber;
+const coerceBoolean = TypeCoercer.toBoolean.bind(TypeCoercer);
+const coerceNumber = TypeCoercer.toNumber.bind(TypeCoercer);
 
 /**
  * Environment loader (SRP - Separated from ConfigManager)
