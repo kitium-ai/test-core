@@ -3,10 +3,10 @@
  * Inspired by Netflix's Simian Army and Google's chaos testing frameworks
  */
 
-import { createLogger } from '../logger';
+import { createMockLogger } from '../logger';
 import { assertUnreachable } from '../utils/assert-never';
 
-const chaosLogger = createLogger(undefined, { metadata: { module: 'chaos-testing' } });
+const chaosLogger = createMockLogger(); // { metadata: { module: 'chaos-testing' } });
 
 export type FailureInjection = {
   /** Type of failure to inject */

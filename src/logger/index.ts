@@ -7,11 +7,14 @@ import { randomUUID } from 'node:crypto';
 
 import {
   createLogger as createCoreLogger,
+  createMockLogger,
   getLogger,
   type ILogger,
   type LogContext as LoggerLogContext,
   LogLevel,
 } from '@kitiumai/logger';
+
+export { createMockLogger };
 
 // Re-export types and enums from @kitiumai/logger
 export type { LogContext } from '@kitiumai/logger';

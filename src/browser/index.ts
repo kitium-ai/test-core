@@ -3,7 +3,7 @@
  * Inspired by Microsoft's Playwright ecosystem
  */
 
-import { createLogger } from '../logger';
+import { createMockLogger } from '../logger';
 
 export type BrowserConfig = {
   /** Browser name */
@@ -121,7 +121,7 @@ export type BrowserMatrix = {
 
 type BrowserTestOutcome = CrossBrowserTestResult['browserResults'][number];
 
-const browserLogger = createLogger(undefined, { metadata: { module: 'browser-testing' } });
+const browserLogger = createMockLogger();
 
 /**
  * Generic browser instance interface

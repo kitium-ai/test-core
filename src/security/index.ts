@@ -3,9 +3,9 @@
  * Inspired by Google's security testing frameworks and OWASP guidelines
  */
 
-import { createLogger } from '../logger';
+import { createMockLogger } from '../logger';
 
-const securityLogger = createLogger(undefined, { metadata: { module: 'security-tests' } });
+const securityLogger = createMockLogger();
 
 export type SecurityTestOptions = {
   /** Test scope */

@@ -3,9 +3,9 @@
  * Inspired by Meta's snapshot testing evolution and Shopify's visual regression testing
  */
 
-import { createLogger } from '../logger';
+import { createMockLogger } from '../logger';
 
-const visualLogger = createLogger(undefined, { metadata: { module: 'visual-testing' } });
+const visualLogger = createMockLogger();
 
 export type ScreenshotOptions = {
   /** Full page screenshot */
