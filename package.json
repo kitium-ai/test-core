@@ -1,6 +1,6 @@
 {
   "name": "@kitiumai/test-core",
-  "version": "2.0.1",
+  "version": "3.0.0",
   "description": "Core test utilities for enterprise testing - async helpers, builders, fixtures, mocks, and more",
   "type": "module",
   "sideEffects": false,
